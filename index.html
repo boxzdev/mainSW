@@ -73,9 +73,10 @@
     cursor: pointer; 
     display: inline-block; 
     transition: transform 0.15s ease;
+    transform-origin: center center;
   }
   .icon-wrap:hover {
-    transform: scale(1.06);
+    transform: scale(1.1);
   }
 
   h1 {
@@ -126,7 +127,18 @@
   button.loading .label { display: none; }
   button.done { background: #107C10; }
 
-  /* falling clone */
+  /* Effects Overlay Canvas */
+  #fxCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* Falling clone for rare game */
   .falling-logo {
     position: fixed;
     width: 44px;
@@ -143,7 +155,66 @@
   .falling-logo div:nth-child(3) { background: #00A4EF; }
   .falling-logo div:nth-child(4) { background: #FFB900; }
 
-  /* Full screen game canvas with smooth rising entrance animation */
+  /* BSOD Overlay */
+  .bsod {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #0078D7;
+    color: white;
+    padding: 24px;
+    font-family: 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 50;
+    border-radius: 8px;
+  }
+  .bsod.show { opacity: 1; pointer-events: auto; }
+  .bsod-sad { font-size: 38px; margin-bottom: 12px; }
+  .bsod-text { font-size: 13px; line-height: 1.4; }
+
+  /* Windows Error Box */
+  .win-error {
+    position: fixed;
+    background: #f0f0f0;
+    border: 1px solid #0055ea;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    border-radius: 4px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #000;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: popIn 0.2s ease-out;
+  }
+  @keyframes popIn {
+    from { transform: scale(0.5); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  /* Clippy Bubble */
+  .clippy-bubble {
+    position: absolute;
+    top: 15px;
+    right: 25px;
+    background: #FFFFCC;
+    border: 1px solid #999966;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #333300;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+    z-index: 40;
+    max-width: 220px;
+    animation: popIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  }
+
+  /* Full screen game canvas */
   #gameCanvas {
     position: fixed;
     top: 0;
@@ -166,9 +237,19 @@
 </head>
 <body>
   <div class="scene" id="scene">
-    <div class="card">
-      <span class="icon-wrap" id="logo" onclick="logoClick()" title="Click me!">
-        <svg class="icon" viewBox="0 0 24 24" fill="none">
+    <div class="card" id="mainCard">
+      <!-- BSOD Overlay -->
+      <div class="bsod" id="bsod">
+        <div class="bsod-sad">:(</div>
+        <div class="bsod-text">
+          <strong>Your PC ran into a problem and needs to restart.</strong><br><br>
+          Stop Code: CRITICAL_LOGO_OVERLOAD<br>
+          Restarting in 1 second...
+        </div>
+      </div>
+
+      <span class="icon-wrap" id="logo" onclick="logoClick()" title="Click me for a surprise!">
+        <svg class="icon" id="logoSvg" viewBox="0 0 24 24" fill="none">
           <rect x="1" y="1" width="10" height="10" fill="#F25022"/>
           <rect x="13" y="1" width="10" height="10" fill="#7FBA00"/>
           <rect x="1" y="13" width="10" height="10" fill="#00A4EF"/>
@@ -184,13 +265,14 @@
     </div>
   </div>
 
+  <canvas id="fxCanvas"></canvas>
   <canvas id="gameCanvas"></canvas>
 
   <script>
+    // --- EXE Download Trigger ---
     function install() {
       const btn = document.getElementById('installBtn');
       if (btn.classList.contains('loading') || btn.classList.contains('done')) return;
-      
       btn.classList.add('loading');
 
       setTimeout(() => {
@@ -210,12 +292,510 @@
       }, 1000);
     }
 
-    let triggered = false;
+    // --- FX Canvas for Particle & Laser Animations ---
+    const fxCanvas = document.getElementById('fxCanvas');
+    const fxCtx = fxCanvas.getContext('2d');
+    let fxParticles = [];
+    let customRenderers = [];
+
+    function resizeFx() {
+      fxCanvas.width = window.innerWidth;
+      fxCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeFx);
+    resizeFx();
+
+    function fxLoop() {
+      fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+
+      // Run active custom render routines (Laser, Matrix, Black Hole)
+      for (let i = customRenderers.length - 1; i >= 0; i--) {
+        if (!customRenderers[i](fxCtx)) {
+          customRenderers.splice(i, 1);
+        }
+      }
+
+      // Render standard particle physics
+      for (let i = fxParticles.length - 1; i >= 0; i--) {
+        const p = fxParticles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += p.gravity !== undefined ? p.gravity : 0.25;
+        p.alpha -= p.decay || 0.02;
+        p.rot += p.vrot || 0.1;
+
+        if (p.alpha <= 0) {
+          fxParticles.splice(i, 1);
+          continue;
+        }
+
+        fxCtx.save();
+        fxCtx.translate(p.x, p.y);
+        fxCtx.rotate(p.rot);
+        fxCtx.fillStyle = p.color;
+        fxCtx.globalAlpha = Math.max(0, p.alpha);
+        if (p.isCircle) {
+          fxCtx.beginPath();
+          fxCtx.arc(0, 0, p.size, 0, Math.PI * 2);
+          fxCtx.fill();
+        } else {
+          fxCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+        }
+        fxCtx.restore();
+      }
+      requestAnimationFrame(fxLoop);
+    }
+    fxLoop();
+
+    // --- Screen Shake ---
+    function shakeScreen(duration = 15, intensity = 12) {
+      const card = document.getElementById('mainCard');
+      let f = 0;
+      const shake = () => {
+        f++;
+        const sX = (Math.random() - 0.5) * intensity * (1 - f / duration);
+        const sY = (Math.random() - 0.5) * intensity * (1 - f / duration);
+        card.style.transform = `translate(${sX}px, ${sY}px)`;
+        if (f < duration) requestAnimationFrame(shake);
+        else card.style.transform = '';
+      };
+      shake();
+    }
+
+    // --- Random Stuff Controller ---
+    let isEventActive = false;
+    const msColors = ['#F25022', '#7FBA00', '#00A4EF', '#FFB900'];
 
     function logoClick() {
-      if (triggered) return;
-      triggered = true;
+      if (isEventActive) return;
 
+      const roll = Math.random();
+
+      // 🏆 ~12% RARE JACKPOT: Hardcore Geometry Dash Mini Game
+      if (roll < 0.12) {
+        isEventActive = true;
+        startMiniGameSequence();
+        return;
+      }
+
+      // 🎲 ~88% CHANCES: 1 of 11 Random Fun Events
+      isEventActive = true;
+      const eventRoll = Math.floor(Math.random() * 11);
+
+      switch (eventRoll) {
+        case 0: eventExplosion(); break;
+        case 1: eventRocketLaunch(); break;
+        case 2: eventBsodGlitch(); break;
+        case 3: eventWindowsErrors(); break;
+        case 4: eventDiscoParty(); break;
+        case 5: eventBlackHole(); break;
+        case 6: eventMatrixRain(); break;
+        case 7: eventTileScatter(); break;
+        case 8: eventLaserStrike(); break;
+        case 9: eventElasticJello(); break;
+        case 10: eventClippyPopup(); break;
+      }
+    }
+
+    // --- EVENT 0: Massive Explosion ---
+    function eventExplosion() {
+      const logo = document.getElementById('logo');
+      const rect = logo.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+
+      logo.style.visibility = 'hidden';
+      shakeScreen(20, 20);
+
+      for (let i = 0; i < 70; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const sp = 4 + Math.random() * 14;
+        fxParticles.push({
+          x: cx,
+          y: cy,
+          vx: Math.cos(angle) * sp,
+          vy: Math.sin(angle) * sp - 2,
+          color: Math.random() > 0.3 ? msColors[Math.floor(Math.random() * 4)] : '#FFA500',
+          size: 4 + Math.random() * 10,
+          rot: Math.random() * Math.PI,
+          vrot: (Math.random() - 0.5) * 0.4,
+          gravity: 0.35,
+          decay: 0.018,
+          alpha: 1
+        });
+      }
+
+      setTimeout(() => {
+        logo.style.visibility = 'visible';
+        logo.style.transform = 'scale(0)';
+        logo.style.transition = 'transform 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
+        setTimeout(() => { logo.style.transform = 'scale(1)'; }, 20);
+        setTimeout(() => { logo.style.transition = ''; isEventActive = false; }, 400);
+      }, 900);
+    }
+
+    // --- EVENT 1: Rocket Launch ---
+    function eventRocketLaunch() {
+      const logo = document.getElementById('logo');
+      const rect = logo.getBoundingClientRect();
+
+      let frame = 0;
+      let y = 0;
+      let vy = 0;
+
+      const launch = () => {
+        frame++;
+        if (frame < 18) {
+          logo.style.transform = `translate(${(Math.random() - 0.5) * 6}px, ${(Math.random() - 0.5) * 6}px)`;
+          if (frame % 2 === 0) {
+            fxParticles.push({
+              x: rect.left + rect.width / 2 + (Math.random() - 0.5) * 15,
+              y: rect.top + rect.height,
+              vx: (Math.random() - 0.5) * 3,
+              vy: 2 + Math.random() * 4,
+              color: '#FFA500',
+              size: 5 + Math.random() * 6,
+              alpha: 1,
+              decay: 0.05,
+              isCircle: true
+            });
+          }
+          requestAnimationFrame(launch);
+        } else {
+          vy -= 1.8;
+          y += vy;
+          logo.style.transform = `translateY(${y}px) rotate(${y * 1.5}deg) scale(0.8)`;
+
+          if (y > -window.innerHeight) {
+            requestAnimationFrame(launch);
+          } else {
+            setTimeout(() => {
+              logo.style.transition = 'transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)';
+              logo.style.transform = 'translateY(0) scale(1)';
+              setTimeout(() => {
+                logo.style.transition = '';
+                isEventActive = false;
+              }, 600);
+            }, 300);
+          }
+        }
+      };
+      launch();
+    }
+
+    // --- EVENT 2: BSOD Crash Glitch ---
+    function eventBsodGlitch() {
+      const bsod = document.getElementById('bsod');
+      shakeScreen(15, 14);
+      bsod.classList.add('show');
+
+      setTimeout(() => {
+        bsod.classList.remove('show');
+        isEventActive = false;
+      }, 1400);
+    }
+
+    // --- EVENT 3: Windows Error Cascades ---
+    function eventWindowsErrors() {
+      const texts = [
+        '⚠️ Error: Logo clicked too hard',
+        '❌ Exception in thread "Logo"',
+        'ℹ️ Task Failed Successfully',
+        '⛔ Access Denied: Mini Game Locked',
+        '🔄 404: Game Not Found (Try Again!)'
+      ];
+
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+          const err = document.createElement('div');
+          err.className = 'win-error';
+          err.innerHTML = `<span>${texts[i]}</span>`;
+          err.style.left = (window.innerWidth / 2 - 120 + (Math.random() - 0.5) * 180) + 'px';
+          err.style.top = (window.innerHeight / 2 - 100 + (Math.random() - 0.5) * 180) + 'px';
+          document.body.appendChild(err);
+
+          setTimeout(() => {
+            const r = err.getBoundingClientRect();
+            for (let k = 0; k < 12; k++) {
+              fxParticles.push({
+                x: r.left + r.width / 2,
+                y: r.top + r.height / 2,
+                vx: (Math.random() - 0.5) * 8,
+                vy: (Math.random() - 0.5) * 8,
+                color: msColors[k % 4],
+                size: 4 + Math.random() * 4,
+                alpha: 1,
+                decay: 0.04
+              });
+            }
+            err.remove();
+            if (i === 4) isEventActive = false;
+          }, 600);
+        }, i * 160);
+      }
+    }
+
+    // --- EVENT 4: Disco Confetti Party ---
+    function eventDiscoParty() {
+      const logo = document.getElementById('logo');
+      const rect = logo.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+
+      let f = 0;
+      const party = () => {
+        f++;
+        logo.style.transform = `rotate(${f * 36}deg) scale(${1 + Math.sin(f * 0.4) * 0.25})`;
+
+        if (f % 2 === 0) {
+          fxParticles.push({
+            x: cx + (Math.random() - 0.5) * 40,
+            y: cy + (Math.random() - 0.5) * 40,
+            vx: (Math.random() - 0.5) * 10,
+            vy: -4 - Math.random() * 6,
+            color: `hsl(${Math.random() * 360}, 90%, 60%)`,
+            size: 6 + Math.random() * 6,
+            alpha: 1,
+            decay: 0.025,
+            vrot: 0.2
+          });
+        }
+
+        if (f < 35) {
+          requestAnimationFrame(party);
+        } else {
+          logo.style.transform = '';
+          isEventActive = false;
+        }
+      };
+      party();
+    }
+
+    // --- EVENT 5: Black Hole Singularity ---
+    function eventBlackHole() {
+      const logo = document.getElementById('logo');
+      const rect = logo.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+
+      let f = 0;
+      customRenderers.push((ctx) => {
+        f++;
+        if (f < 45) {
+          // Vortex suck
+          logo.style.transform = `scale(${Math.max(0.05, 1 - f / 45)}) rotate(${f * 30}deg)`;
+          for (let i = 0; i < 4; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 70 + Math.random() * 50;
+            fxParticles.push({
+              x: cx + Math.cos(angle) * dist,
+              y: cy + Math.sin(angle) * dist,
+              vx: -Math.cos(angle) * 4,
+              vy: -Math.sin(angle) * 4,
+              color: '#0078D4',
+              size: 3,
+              alpha: 1,
+              decay: 0.05,
+              isCircle: true
+            });
+          }
+          return true;
+        } else if (f === 45) {
+          // Supernova Burst
+          shakeScreen(15, 16);
+          for (let i = 0; i < 60; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const sp = 4 + Math.random() * 10;
+            fxParticles.push({
+              x: cx,
+              y: cy,
+              vx: Math.cos(a) * sp,
+              vy: Math.sin(a) * sp,
+              color: msColors[i % 4],
+              size: 5 + Math.random() * 6,
+              alpha: 1,
+              decay: 0.025
+            });
+          }
+          logo.style.transform = 'scale(0)';
+          setTimeout(() => {
+            logo.style.transition = 'transform 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
+            logo.style.transform = 'scale(1)';
+            setTimeout(() => { logo.style.transition = ''; isEventActive = false; }, 400);
+          }, 200);
+          return false;
+        }
+      });
+    }
+
+    // --- EVENT 6: Matrix Digital Rain ---
+    function eventMatrixRain() {
+      const card = document.getElementById('mainCard');
+      const rect = card.getBoundingClientRect();
+      const cols = Math.floor(rect.width / 18);
+      const drops = Array(cols).fill(0);
+      const chars = "010101MICROSOFTCLIENTRUNTIME101";
+
+      let f = 0;
+      customRenderers.push((ctx) => {
+        f++;
+        ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
+        ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
+        ctx.fillStyle = "#00FF66";
+        ctx.font = "13px monospace";
+
+        for (let i = 0; i < drops.length; i++) {
+          const text = chars[Math.floor(Math.random() * chars.length)];
+          const x = rect.left + i * 18;
+          const y = rect.top + drops[i] * 18;
+          ctx.fillText(text, x, y);
+          if (y > rect.bottom && Math.random() > 0.95) drops[i] = 0;
+          drops[i]++;
+        }
+
+        if (f < 50) return true;
+        else {
+          isEventActive = false;
+          return false;
+        }
+      });
+    }
+
+    // --- EVENT 7: Tile Physics Scatter (Billiard Bounce) ---
+    function eventTileScatter() {
+      const logo = document.getElementById('logo');
+      const card = document.getElementById('mainCard');
+      const cRect = card.getBoundingClientRect();
+      const lRect = logo.getBoundingClientRect();
+
+      logo.style.visibility = 'hidden';
+
+      const tiles = [
+        { color: '#F25022', x: lRect.left, y: lRect.top, vx: -6, vy: -5 },
+        { color: '#7FBA00', x: lRect.left + 22, y: lRect.top, vx: 6, vy: -6 },
+        { color: '#00A4EF', x: lRect.left, y: lRect.top + 22, vx: -5, vy: 6 },
+        { color: '#FFB900', x: lRect.left + 22, y: lRect.top + 22, vx: 7, vy: 5 }
+      ];
+
+      let f = 0;
+      customRenderers.push((ctx) => {
+        f++;
+        tiles.forEach((t) => {
+          t.x += t.vx;
+          t.y += t.vy;
+          t.vy += 0.35; // gravity
+
+          // Bounce off card walls
+          if (t.x < cRect.left || t.x > cRect.right - 20) t.vx *= -0.85;
+          if (t.y > cRect.bottom - 20) { t.y = cRect.bottom - 20; t.vy *= -0.85; }
+
+          ctx.fillStyle = t.color;
+          ctx.fillRect(t.x, t.y, 20, 20);
+        });
+
+        if (f < 45) return true;
+        else {
+          // Snap back
+          logo.style.visibility = 'visible';
+          logo.style.transform = 'scale(0)';
+          logo.style.transition = 'transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
+          setTimeout(() => { logo.style.transform = 'scale(1)'; }, 20);
+          setTimeout(() => { logo.style.transition = ''; isEventActive = false; }, 350);
+          return false;
+        }
+      });
+    }
+
+    // --- EVENT 8: Orbital Laser Strike ---
+    function eventLaserStrike() {
+      const logo = document.getElementById('logo');
+      const rect = logo.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+
+      let f = 0;
+      shakeScreen(18, 14);
+
+      customRenderers.push((ctx) => {
+        f++;
+        if (f < 20) {
+          // Glowing orbital beam
+          ctx.strokeStyle = `rgba(0, 164, 239, ${0.9 - f * 0.03})`;
+          ctx.lineWidth = 14 - f * 0.5;
+          ctx.beginPath();
+          ctx.moveTo(cx, 0);
+          ctx.lineTo(cx, cy);
+          ctx.stroke();
+
+          // Laser core
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.moveTo(cx, 0);
+          ctx.lineTo(cx, cy);
+          ctx.stroke();
+
+          // Sparks at strike point
+          for (let i = 0; i < 4; i++) {
+            fxParticles.push({
+              x: cx,
+              y: cy,
+              vx: (Math.random() - 0.5) * 12,
+              vy: -Math.random() * 8,
+              color: '#00A4EF',
+              size: 4,
+              alpha: 1,
+              decay: 0.06
+            });
+          }
+          return true;
+        } else {
+          isEventActive = false;
+          return false;
+        }
+      });
+    }
+
+    // --- EVENT 9: Elastic Jello Rubber Bounce ---
+    function eventElasticJello() {
+      const logo = document.getElementById('logo');
+      let f = 0;
+      const wobble = () => {
+        f++;
+        const sX = 1 + Math.sin(f * 0.6) * Math.exp(-f * 0.08) * 0.9;
+        const sY = 1 + Math.cos(f * 0.6) * Math.exp(-f * 0.08) * 0.9;
+        logo.style.transform = `scale(${sX}, ${sY})`;
+
+        if (f < 40) requestAnimationFrame(wobble);
+        else {
+          logo.style.transform = '';
+          isEventActive = false;
+        }
+      };
+      wobble();
+    }
+
+    // --- EVENT 10: Clippy Retro Assistant ---
+    function eventClippyPopup() {
+      const card = document.getElementById('mainCard');
+      const bubble = document.createElement('div');
+      bubble.className = 'clippy-bubble';
+      bubble.innerHTML = `<strong>📎 Assistant:</strong><br>It looks like you're poking the logo! Would you like help opening the secret game?`;
+      card.appendChild(bubble);
+
+      setTimeout(() => {
+        bubble.style.transition = 'opacity 0.3s, transform 0.3s';
+        bubble.style.opacity = '0';
+        bubble.style.transform = 'scale(0.7)';
+        setTimeout(() => {
+          bubble.remove();
+          isEventActive = false;
+        }, 300);
+      }, 1800);
+    }
+
+    // --- RARE JACKPOT MINI-GAME SEQUENCE (~12% Roll) ---
+    function startMiniGameSequence() {
       const logo = document.getElementById('logo');
       const canvas = document.getElementById('gameCanvas');
 
@@ -275,6 +855,7 @@
       }
     }
 
+    // --- Hardcore Geometry Dash Game Engine ---
     function initGame(spawnX) {
       const canvas = document.getElementById('gameCanvas');
       const ctx = canvas.getContext('2d');
@@ -287,7 +868,6 @@
 
       const cubeSize = 40;
       const landX = Math.max(60, spawnX);
-      const msColors = ['#F25022', '#7FBA00', '#00A4EF', '#FFB900'];
 
       // Fast Hardcore Physics
       const JUMP_FORCE = -13.2;
@@ -309,7 +889,7 @@
       let ringPulses = [];
       let frame = 0;
       let worldOffset = 0;
-      let speed = 7.2; // High initial speed for genuine challenge
+      let speed = 7.2;
       let gameOver = false;
       let shakeTime = 0;
       let canRestart = false;
@@ -319,164 +899,91 @@
 
       ringPulses.push({ x: landX + cubeSize / 2, y: groundY, r: 8, alpha: 1.2, color: '#FFB900' });
 
-      // --- Pure Dynamic Chaotic Obstacle Spawner (Zero Presets) ---
+      // Chaotic entity spawner
       function spawnChaoticEntity(startX) {
         let cursorX = startX;
         const roll = Math.random();
 
-        // 1. Chaotic Spike Swarms (Random 1-4 spikes of completely random heights)
+        // 1. Spikes
         if (roll < 0.32) {
-          const spikeCount = 1 + Math.floor(Math.random() * 4);
-          for (let i = 0; i < spikeCount; i++) {
-            const h = 18 + Math.floor(Math.random() * 30); // 18px to 48px height!
+          const count = 1 + Math.floor(Math.random() * 4);
+          for (let i = 0; i < count; i++) {
+            const h = 18 + Math.floor(Math.random() * 30);
             const w = 16 + Math.floor(Math.random() * 12);
-            obstacles.push({
-              type: 'spike',
-              x: cursorX,
-              w: w,
-              h: h
-            });
+            obstacles.push({ type: 'spike', x: cursorX, w: w, h: h });
             cursorX += w + Math.floor(Math.random() * 8);
           }
         }
-        // 2. Spinning Sawblades at random heights & sizes
+        // 2. Spinning Saws
         else if (roll < 0.58) {
-          const sawRadius = 16 + Math.floor(Math.random() * 20); // 16px to 36px radius
+          const sawR = 16 + Math.floor(Math.random() * 20);
           const inAir = Math.random() > 0.45;
-          const sawY = inAir ? (groundY - 45 - Math.random() * 55) : (groundY - sawRadius + 2);
+          const sawY = inAir ? (groundY - 45 - Math.random() * 55) : (groundY - sawR + 2);
 
           obstacles.push({
             type: 'saw',
-            x: cursorX + sawRadius,
+            x: cursorX + sawR,
             y: sawY,
-            r: sawRadius,
+            r: sawR,
             rot: 0,
             speed: (Math.random() > 0.5 ? 1 : -1) * (0.07 + Math.random() * 0.08)
           });
 
-          // If saw is high in air, spawn ground spike below it
           if (inAir) {
-            obstacles.push({
-              type: 'spike',
-              x: cursorX + sawRadius - 10,
-              w: 20,
-              h: 22
-            });
-            // Random chance for a quick micro-orb under the saw
+            obstacles.push({ type: 'spike', x: cursorX + sawR - 10, w: 20, h: 22 });
             if (Math.random() > 0.5) {
-              obstacles.push({
-                type: 'orb',
-                orbType: 'pink',
-                x: cursorX + sawRadius,
-                y: groundY - 32,
-                r: 15,
-                used: false
-              });
+              obstacles.push({ type: 'orb', orbType: 'pink', x: cursorX + sawR, y: groundY - 32, r: 15, used: false });
             }
           }
-          cursorX += sawRadius * 2 + 10;
+          cursorX += sawR * 2 + 10;
         }
-        // 3. Multi-Tier Platforms with random hazards (Ceiling Spikes, Saws, Pads)
+        // 3. Multi-tier platforms
         else if (roll < 0.82) {
           const blockW = 35 + Math.floor(Math.random() * 95);
           const blockH = 25 + Math.floor(Math.random() * 65);
           const blockY = groundY - blockH;
 
-          obstacles.push({
-            type: 'block',
-            x: cursorX,
-            y: blockY,
-            w: blockW,
-            h: blockH
-          });
+          obstacles.push({ type: 'block', x: cursorX, y: blockY, w: blockW, h: blockH });
 
           const sub = Math.random();
-          // Hanging ceiling spikes underneath
           if (blockH >= 50 && sub < 0.4) {
             const downCount = Math.max(1, Math.floor(blockW / 24));
             for (let i = 0; i < downCount; i++) {
-              obstacles.push({
-                type: 'spike_down',
-                x: cursorX + 6 + i * 24,
-                y: blockY + blockH,
-                w: 18,
-                h: 22 + Math.random() * 12
-              });
+              obstacles.push({ type: 'spike_down', x: cursorX + 6 + i * 24, y: blockY + blockH, w: 18, h: 22 + Math.random() * 12 });
             }
-          } 
-          // Sawblade sitting on top of block
-          else if (sub < 0.65 && blockW >= 55) {
-            obstacles.push({
-              type: 'saw',
-              x: cursorX + blockW / 2,
-              y: blockY - 18,
-              r: 18,
-              rot: 0,
-              speed: 0.1
-            });
-          }
-          // Trampoline on top of block
-          else if (sub < 0.85 && blockW >= 45) {
-            obstacles.push({
-              type: 'pad',
-              x: cursorX + blockW / 2 - 16,
-              y: blockY - 10,
-              w: 32,
-              h: 10,
-              bounce: 0
-            });
+          } else if (sub < 0.65 && blockW >= 55) {
+            obstacles.push({ type: 'saw', x: cursorX + blockW / 2, y: blockY - 18, r: 18, rot: 0, speed: 0.1 });
+          } else if (sub < 0.85 && blockW >= 45) {
+            obstacles.push({ type: 'pad', x: cursorX + blockW / 2 - 16, y: blockY - 10, w: 32, h: 10, bounce: 0 });
           }
           cursorX += blockW;
         }
-        // 4. Chaotic Jump Orb Gauntlets & Trampoline Launchers
+        // 4. Pads & Colored Orbs
         else {
           const isTrampoline = Math.random() > 0.5;
           if (isTrampoline) {
             const padW = 34, padH = 10;
-            obstacles.push({
-              type: 'pad',
-              x: cursorX,
-              y: groundY - padH,
-              w: padW,
-              h: padH,
-              bounce: 0
-            });
+            obstacles.push({ type: 'pad', x: cursorX, y: groundY - padH, w: padW, h: padH, bounce: 0 });
             cursorX += padW;
 
-            // Randomized lethal pit after pad
-            const spikesInPit = 2 + Math.floor(Math.random() * 4);
+            const pit = 2 + Math.floor(Math.random() * 4);
             const pitGap = 30 + Math.random() * 30;
-            for (let i = 0; i < spikesInPit; i++) {
-              obstacles.push({
-                type: 'spike',
-                x: cursorX + pitGap + i * 22,
-                w: 20,
-                h: 26 + Math.random() * 14
-              });
+            for (let i = 0; i < pit; i++) {
+              obstacles.push({ type: 'spike', x: cursorX + pitGap + i * 22, w: 20, h: 26 + Math.random() * 14 });
             }
-            cursorX += pitGap + spikesInPit * 22;
+            cursorX += pitGap + pit * 22;
           } else {
-            // Chaotic Colored Orb sequence
-            const orbColorRoll = Math.random();
-            const oType = orbColorRoll < 0.35 ? 'pink' : (orbColorRoll < 0.7 ? 'yellow' : 'red');
+            const oRoll = Math.random();
+            const oType = oRoll < 0.35 ? 'pink' : (oRoll < 0.7 ? 'yellow' : 'red');
             const oY = groundY - (40 + Math.random() * 65);
 
-            // Ground danger below orb
             obstacles.push({ type: 'spike', x: cursorX + 10, w: 22, h: 28 });
             obstacles.push({ type: 'spike', x: cursorX + 34, w: 22, h: 28 });
-            obstacles.push({
-              type: 'orb',
-              orbType: oType,
-              x: cursorX + 24,
-              y: oY,
-              r: 16,
-              used: false
-            });
+            obstacles.push({ type: 'orb', orbType: oType, x: cursorX + 24, y: oY, r: 16, used: false });
             cursorX += 60;
           }
         }
 
-        // Extremely tight and unpredictable spacing between obstacles!
         const nextGap = 85 + Math.random() * 115;
         return cursorX + nextGap;
       }
@@ -494,10 +1001,10 @@
               let boost = JUMP_FORCE * 1.08;
               let pColor = '#FFB900';
               if (obs.orbType === 'pink') {
-                boost = JUMP_FORCE * 0.72; // Micro hop
+                boost = JUMP_FORCE * 0.72;
                 pColor = '#FF007F';
               } else if (obs.orbType === 'red') {
-                boost = JUMP_FORCE * 1.45; // Super leap
+                boost = JUMP_FORCE * 1.45;
                 pColor = '#E81123';
               }
 
@@ -634,7 +1141,6 @@
           let landedOnBlock = false;
           let hitTrampolineThisFrame = false;
 
-          // Pure chaotic spawner
           nextSpawnX -= speed;
           if (nextSpawnX <= W) {
             nextSpawnX = spawnChaoticEntity(W + 30);
@@ -643,7 +1149,7 @@
           obstacles.forEach(obs => {
             obs.x -= speed;
 
-            // 1. Spike Collision
+            // 1. Spikes
             if (obs.type === 'spike') {
               if (
                 landX + cubeSize - 6 > obs.x &&
@@ -654,7 +1160,7 @@
               }
             }
 
-            // 2. Ceiling Hanging Spike Collision
+            // 2. Ceiling Hanging Spikes
             else if (obs.type === 'spike_down') {
               if (
                 landX + cubeSize - 6 > obs.x &&
@@ -666,7 +1172,7 @@
               }
             }
 
-            // 3. Sawblade Collision (Rotates continuously)
+            // 3. Saws
             else if (obs.type === 'saw') {
               obs.rot += (obs.speed || 0.08);
               const cubeCX = landX + cubeSize / 2;
@@ -677,7 +1183,7 @@
               }
             }
 
-            // 4. Block Collision
+            // 4. Blocks
             else if (obs.type === 'block') {
               const inXRange = (landX + cubeSize - 6 > obs.x) && (landX + 6 < obs.x + obs.w);
 
@@ -703,7 +1209,7 @@
               }
             }
 
-            // 5. Trampoline Collision
+            // 5. Pads
             else if (obs.type === 'pad') {
               if (obs.bounce > 0) obs.bounce--;
 
@@ -741,7 +1247,6 @@
 
           obstacles = obstacles.filter(obs => (obs.x + (obs.w || obs.r * 2 || 60)) > -70);
 
-          // Fast aggressive speed increase
           if (frame % 250 === 0) {
             speed += 0.3;
           }
@@ -780,7 +1285,7 @@
         ctx.lineTo(W, groundY);
         ctx.stroke();
 
-        // Moving ground hash lines
+        // Moving ground hashes
         ctx.strokeStyle = '#D2D0CE';
         ctx.lineWidth = 1.5;
         for (let x = -((worldOffset) % 24); x < W; x += 24) {
@@ -948,4 +1453,4 @@
     }
   </script>
 </body>
-</html>
+ </html>
