@@ -1,110 +1,441 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Download</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body {
-    height: 100%;
-    background: #000;
+  * { box-sizing: border-box; }
+  html, body { 
+    height: 100%; 
+    margin: 0;
     overflow: hidden;
-    font-family: 'Share Tech Mono', monospace;
   }
-  #matrix {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-  .wrap {
-    position: relative;
-    z-index: 1;
-    height: 100vh;
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    min-height: 100vh;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    background: linear-gradient(135deg, #eef2f7 0%, #e3e9f0 100%);
+    user-select: none;
   }
-  a.download-btn {
-    font-size: 1.2rem;
-    padding: 16px 32px;
-    background: rgba(0, 0, 0, 0.6);
-    color: #00ff41;
-    border: 1px solid #00ff41;
-    text-decoration: none;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    text-shadow: 0 0 8px #00ff41;
-    box-shadow: 0 0 12px rgba(0, 255, 65, 0.4);
-    backdrop-filter: blur(2px);
-    transition: all 0.15s ease;
+
+  .scene {
+    position: relative;
+    width: 90%;
+    max-width: 420px;
+    z-index: 5;
   }
-  a.download-btn::before {
-    content: "> ";
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
   }
-  a.download-btn::after {
-    content: "_";
-    animation: blink 1s step-start infinite;
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
   }
-  a.download-btn:hover {
-    background: #00ff41;
-    color: #000;
-    text-shadow: none;
-    box-shadow: 0 0 20px rgba(0, 255, 65, 0.8);
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
-  @keyframes blink {
-    50% { opacity: 0; }
+
+  .card {
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06);
+    padding: 32px 36px;
+    width: 100%;
+    animation: fadeInUp 0.5s ease-out;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #0078D4, #50E6FF, #0078D4);
+    background-size: 200% 100%;
+    animation: shimmer 3s linear infinite;
+  }
+  @keyframes shimmer {
+    to { background-position: -200% 0; }
+  }
+
+  .icon {
+    width: 44px;
+    height: 44px;
+    margin-bottom: 16px;
+    animation: float 3s ease-in-out infinite;
+  }
+  .icon-wrap { 
+    cursor: pointer; 
+    display: inline-block; 
+    transition: transform 0.15s ease;
+  }
+  .icon-wrap:hover {
+    transform: scale(1.06);
+  }
+
+  h1 {
+    font-size: 19px;
+    font-weight: 600;
+    color: #201F1E;
+    margin: 0 0 8px 0;
+  }
+  p {
+    font-size: 13px;
+    color: #605E5C;
+    margin: 0 0 22px 0;
+    line-height: 1.6;
+  }
+
+  button {
+    background: #0078D4;
+    color: white;
+    border: none;
+    padding: 9px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Segoe UI', sans-serif;
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 96px;
+    justify-content: center;
+  }
+  button:hover { background: #106EBE; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,120,212,0.35); }
+  button:active { background: #005A9E; transform: translateY(0); }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    display: none;
+    animation: spin 0.6s linear infinite;
+  }
+  button.loading .spinner { display: inline-block; }
+  button.loading .label { display: none; }
+  button.done { background: #107C10; }
+
+  /* falling clone */
+  .falling-logo {
+    position: fixed;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 2px;
+    z-index: 999;
+    pointer-events: none;
+  }
+  .falling-logo div:nth-child(1) { background: #F25022; }
+  .falling-logo div:nth-child(2) { background: #7FBA00; }
+  .falling-logo div:nth-child(3) { background: #00A4EF; }
+  .falling-logo div:nth-child(4) { background: #FFB900; }
+
+  /* Full viewport bottom game canvas */
+  #gameCanvas {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 160px;
+    z-index: 10;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  #gameCanvas.show {
+    opacity: 1;
+  }
+
+  /* Floating HUD above the ground */
+  .hud {
+    position: fixed;
+    bottom: 170px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    font-size: 13px;
+    color: #605E5C;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(8px);
+    padding: 6px 16px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    z-index: 20;
+    pointer-events: none;
+  }
+  .hud.show {
+    opacity: 1;
+  }
+  #score {
+    font-weight: 600;
+    color: #201F1E;
   }
 </style>
 </head>
 <body>
-  <canvas id="matrix"></canvas>
-  <div class="wrap">
-    <a class="download-btn" href="https://github.com/theotherboxz/mainSW/raw/main/main.exe" download>
-      Download
-    </a>
+  <div class="scene" id="scene">
+    <div class="card">
+      <span class="icon-wrap" id="logo" onclick="logoClick()" title="Click me!">
+        <svg class="icon" viewBox="0 0 24 24" fill="none">
+          <rect x="1" y="1" width="10" height="10" fill="#F25022"/>
+          <rect x="13" y="1" width="10" height="10" fill="#7FBA00"/>
+          <rect x="1" y="13" width="10" height="10" fill="#00A4EF"/>
+          <rect x="13" y="13" width="10" height="10" fill="#FFB900"/>
+        </svg>
+      </span>
+      <h1>Microsoft Client Runtime</h1>
+      <p>This component provides the underlying services required to run Microsoft applications on your device, including update management, licensing, and background synchronization. It runs silently and starts automatically with Windows.</p>
+      <button id="installBtn" onclick="install()">
+        <span class="spinner"></span>
+        <span class="label">Install</span>
+      </button>
+    </div>
   </div>
+
+  <div class="hud" id="hud">
+    <span id="gameHint">Space / Tap anywhere to jump</span>
+    <span id="score">Score: 0</span>
+  </div>
+
+  <canvas id="gameCanvas"></canvas>
+
   <script>
-    var canvas = document.getElementById('matrix');
-    var ctx = canvas.getContext('2d');
-    var chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789';
-    chars = chars.split('');
-    var fontSize = 16;
-    var columns, drops;
+    function install() {
+      const btn = document.getElementById('installBtn');
+      if (btn.classList.contains('loading') || btn.classList.contains('done')) return;
+      btn.classList.add('loading');
+      setTimeout(() => {
+        btn.classList.remove('loading');
+        btn.classList.add('done');
+        btn.querySelector('.label').textContent = 'Installed';
+        btn.querySelector('.label').style.display = 'inline';
+      }, 1400);
+    }
 
-    function resize() {
+    let triggered = false;
+
+    function logoClick() {
+      if (triggered) return;
+      triggered = true;
+
+      const logo = document.getElementById('logo');
+      const canvas = document.getElementById('gameCanvas');
+      const hud = document.getElementById('hud');
+
+      const logoRect = logo.getBoundingClientRect();
+      const startLeft = logoRect.left;
+      const startTop = logoRect.top;
+
+      logo.style.visibility = 'hidden';
+
+      // Setup canvas dimensions
       canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      columns = Math.floor(canvas.width / fontSize);
-      drops = [];
-      for (var i = 0; i < columns; i++) {
-        drops[i] = Math.random() * -100;
-      }
-    }
+      canvas.height = 160;
+      const groundY = canvas.height * 0.75;
+      const groundScreenY = (window.innerHeight - canvas.height) + groundY;
 
-    window.addEventListener('resize', resize);
-    resize();
+      // Spawn falling clone
+      const clone = document.createElement('div');
+      clone.className = 'falling-logo';
+      clone.style.left = startLeft + 'px';
+      clone.style.top = startTop + 'px';
+      clone.innerHTML = '<div></div><div></div><div></div><div></div>';
+      document.body.appendChild(clone);
 
-    function draw() {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#00ff41';
-      ctx.font = fontSize + 'px monospace';
-      for (var i = 0; i < drops.length; i++) {
-        var text = chars[Math.floor(Math.random() * chars.length)];
-        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-          drops[i] = 0;
+      let size = 44;
+      let top = startTop;
+      let vy = 0;
+      const targetTop = groundScreenY - size;
+
+      requestAnimationFrame(function fall() {
+        vy += 0.9;
+        top += vy;
+
+        if (top >= targetTop) {
+          top = targetTop;
+          clone.style.top = top + 'px';
+          squash();
+          return;
         }
-        drops[i]++;
+
+        clone.style.top = top + 'px';
+        requestAnimationFrame(fall);
+      });
+
+      function squash() {
+        let f = 0;
+        const squashFrame = () => {
+          f++;
+          const s = f < 6 ? 1 - f * 0.06 : 0.64 + (f - 6) * 0.06;
+          clone.style.transform = 'scaleY(' + Math.max(s, 0.6) + ')';
+          if (f < 12) {
+            requestAnimationFrame(squashFrame);
+          } else {
+            clone.remove();
+            canvas.classList.add('show');
+            hud.classList.add('show');
+            initGame(startLeft);
+          }
+        };
+        squashFrame();
       }
     }
 
-    setInterval(draw, 35);
+    function initGame(spawnX) {
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      const scoreEl = document.getElementById('score');
+      const hintEl = document.getElementById('gameHint');
+
+      const resize = () => {
+        canvas.width = window.innerWidth;
+        canvas.height = 160;
+      };
+      window.addEventListener('resize', resize);
+
+      const cubeSize = 44;
+      const landX = Math.max(40, spawnX);
+      const msColors = ['#F25022', '#7FBA00', '#00A4EF', '#FFB900'];
+
+      let groundY = canvas.height * 0.75;
+      let cube = { y: groundY - cubeSize, vy: 0, angle: 0, jumping: false };
+      let spikes = [];
+      let frame = 0;
+      let score = 0;
+      let speed = 5.5;
+      let gameOver = false;
+
+      function jump() {
+        if (gameOver) { reset(); return; }
+        if (!cube.jumping) { cube.vy = -12; cube.jumping = true; }
+      }
+
+      function reset() {
+        groundY = canvas.height * 0.75;
+        cube.y = groundY - cubeSize; cube.vy = 0; cube.angle = 0; cube.jumping = false;
+        spikes = []; frame = 0; score = 0; speed = 5.5; gameOver = false;
+        hintEl.textContent = 'Space / Tap anywhere to jump';
+      }
+
+      window.addEventListener('keydown', (e) => { 
+        if (e.code === 'Space' || e.code === 'ArrowUp') { 
+          e.preventDefault(); 
+          jump(); 
+        } 
+      });
+      window.addEventListener('pointerdown', (e) => {
+        // Prevent interfering with the Install button
+        if (!e.target.closest('#installBtn')) {
+          jump();
+        }
+      });
+
+      function loop() {
+        const W = canvas.width;
+        const H = canvas.height;
+        groundY = H * 0.75;
+        frame++;
+
+        if (!gameOver) {
+          cube.vy += 0.65;
+          cube.y += cube.vy;
+          if (cube.jumping) cube.angle += 0.16;
+
+          if (cube.y > groundY - cubeSize) {
+            cube.y = groundY - cubeSize; 
+            cube.vy = 0; 
+            cube.jumping = false;
+            cube.angle = Math.round(cube.angle / (Math.PI / 2)) * (Math.PI / 2);
+          }
+
+          // Spawn obstacles
+          if (frame % 85 === 0) {
+            spikes.push({ x: W, w: 22, h: 28 });
+          }
+
+          spikes.forEach(s => s.x -= speed);
+          spikes = spikes.filter(s => s.x + s.w > 0);
+
+          // Hit detection
+          spikes.forEach(s => {
+            if (landX < s.x + s.w - 6 && landX + cubeSize > s.x + 6 && cube.y + cubeSize > groundY - s.h + 6) {
+              gameOver = true;
+              hintEl.textContent = 'Game Over — Click / Space to retry';
+            }
+          });
+
+          if (!gameOver) { 
+            score++; 
+            if (score % 300 === 0) speed += 0.35; 
+          }
+        }
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Ground Line spanning full screen width
+        ctx.strokeStyle = '#B3B0AD';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); 
+        ctx.moveTo(0, groundY); 
+        ctx.lineTo(W, groundY); 
+        ctx.stroke();
+
+        // Moving ground hash lines
+        ctx.strokeStyle = '#D2D0CE';
+        ctx.lineWidth = 1.5;
+        for (let x = -((frame * speed) % 24); x < W; x += 24) {
+          ctx.beginPath(); 
+          ctx.moveTo(x, groundY); 
+          ctx.lineTo(x + 10, groundY + 10); 
+          ctx.stroke();
+        }
+
+        // Obstacles (Spikes)
+        ctx.fillStyle = gameOver ? '#D13438' : '#323130';
+        spikes.forEach(s => {
+          ctx.beginPath();
+          ctx.moveTo(s.x, groundY);
+          ctx.lineTo(s.x + s.w / 2, groundY - s.h);
+          ctx.lineTo(s.x + s.w, groundY);
+          ctx.closePath();
+          ctx.fill();
+        });
+
+        // Player Cube
+        ctx.save();
+        ctx.translate(landX + cubeSize / 2, cube.y + cubeSize / 2);
+        ctx.rotate(cube.angle);
+        const half = cubeSize / 2;
+        const gap = 1;
+        ctx.fillStyle = gameOver ? '#D13438' : msColors[0]; ctx.fillRect(-half, -half, half - gap, half - gap);
+        ctx.fillStyle = gameOver ? '#D13438' : msColors[1]; ctx.fillRect(gap, -half, half - gap, half - gap);
+        ctx.fillStyle = gameOver ? '#D13438' : msColors[2]; ctx.fillRect(-half, gap, half - gap, half - gap);
+        ctx.fillStyle = gameOver ? '#D13438' : msColors[3]; ctx.fillRect(gap, gap, half - gap, half - gap);
+        ctx.restore();
+
+        scoreEl.textContent = 'Score: ' + Math.floor(score / 5);
+
+        requestAnimationFrame(loop);
+      }
+
+      loop();
+    }
   </script>
 </body>
 </html>
