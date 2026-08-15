@@ -24,7 +24,8 @@
     position: relative;
     width: 90%;
     max-width: 420px;
-    z-index: 5;
+    z-index: 10;
+    pointer-events: auto;
   }
 
   @keyframes fadeInUp {
@@ -142,49 +143,20 @@
   .falling-logo div:nth-child(3) { background: #00A4EF; }
   .falling-logo div:nth-child(4) { background: #FFB900; }
 
-  /* Full viewport bottom game canvas */
+  /* Full screen game canvas (eliminates any clipping) */
   #gameCanvas {
     position: fixed;
-    bottom: 0;
+    top: 0;
     left: 0;
     width: 100vw;
-    height: 160px;
-    z-index: 10;
+    height: 100vh;
+    z-index: 1;
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.3s ease;
   }
   #gameCanvas.show {
     opacity: 1;
-  }
-
-  /* Floating HUD above the ground */
-  .hud {
-    position: fixed;
-    bottom: 170px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 18px;
-    align-items: center;
-    font-size: 13px;
-    color: #605E5C;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(8px);
-    padding: 6px 16px;
-    border-radius: 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    opacity: 0;
-    transition: opacity 0.4s ease;
-    z-index: 20;
-    pointer-events: none;
-  }
-  .hud.show {
-    opacity: 1;
-  }
-  #score {
-    font-weight: 600;
-    color: #201F1E;
   }
 </style>
 </head>
@@ -206,11 +178,6 @@
         <span class="label">Install</span>
       </button>
     </div>
-  </div>
-
-  <div class="hud" id="hud">
-    <span id="gameHint">Space / Tap anywhere to jump</span>
-    <span id="score">Score: 0</span>
   </div>
 
   <canvas id="gameCanvas"></canvas>
@@ -236,7 +203,6 @@
 
       const logo = document.getElementById('logo');
       const canvas = document.getElementById('gameCanvas');
-      const hud = document.getElementById('hud');
 
       const logoRect = logo.getBoundingClientRect();
       const startLeft = logoRect.left;
@@ -244,13 +210,10 @@
 
       logo.style.visibility = 'hidden';
 
-      // Setup canvas dimensions
       canvas.width = window.innerWidth;
-      canvas.height = 160;
-      const groundY = canvas.height * 0.75;
-      const groundScreenY = (window.innerHeight - canvas.height) + groundY;
+      canvas.height = window.innerHeight;
+      const groundY = window.innerHeight - 75;
 
-      // Spawn falling clone
       const clone = document.createElement('div');
       clone.className = 'falling-logo';
       clone.style.left = startLeft + 'px';
@@ -261,7 +224,7 @@
       let size = 44;
       let top = startTop;
       let vy = 0;
-      const targetTop = groundScreenY - size;
+      const targetTop = groundY - size;
 
       requestAnimationFrame(function fall() {
         vy += 0.9;
@@ -289,7 +252,6 @@
           } else {
             clone.remove();
             canvas.classList.add('show');
-            hud.classList.add('show');
             initGame(startLeft);
           }
         };
@@ -300,137 +262,557 @@
     function initGame(spawnX) {
       const canvas = document.getElementById('gameCanvas');
       const ctx = canvas.getContext('2d');
-      const scoreEl = document.getElementById('score');
-      const hintEl = document.getElementById('gameHint');
 
       const resize = () => {
         canvas.width = window.innerWidth;
-        canvas.height = 160;
+        canvas.height = window.innerHeight;
       };
       window.addEventListener('resize', resize);
 
-      const cubeSize = 44;
-      const landX = Math.max(40, spawnX);
+      const cubeSize = 42;
+      const landX = Math.max(60, spawnX);
       const msColors = ['#F25022', '#7FBA00', '#00A4EF', '#FFB900'];
 
-      let groundY = canvas.height * 0.75;
-      let cube = { y: groundY - cubeSize, vy: 0, angle: 0, jumping: false };
-      let spikes = [];
+      // Physics
+      const JUMP_FORCE = -12.5;
+      const GRAVITY = 0.65;
+      const ROTATION_SPEED = (2 * Math.PI) / (2 * Math.abs(JUMP_FORCE) / GRAVITY);
+
+      let groundY = canvas.height - 75;
+      let cube = { 
+        y: groundY - cubeSize, 
+        oldY: groundY - cubeSize,
+        vy: 0, 
+        angle: 0, 
+        jumping: false, 
+        onGround: true 
+      };
+
+      let obstacles = [];
+      let particles = [];
+      let ringPulses = [];
       let frame = 0;
-      let score = 0;
-      let speed = 5.5;
+      let worldOffset = 0;
+      let speed = 6.0;
       let gameOver = false;
+      let shakeTime = 0;
+      let canRestart = false;
+      let isHoldingJump = false;
+      let jumpBufferTimer = 0;
+      let nextSpawnX = canvas.width + 100;
+
+      // Pure procedural generation
+      function spawnProceduralChunk(startX) {
+        let cursorX = startX;
+        const roll = Math.random();
+
+        if (roll < 0.28) {
+          // 1. Spikes on ground (1 to 3 spikes)
+          const count = 1 + Math.floor(Math.random() * 3);
+          const spikeW = 20 + Math.random() * 4;
+          const spikeH = 26 + Math.random() * 6;
+          for (let i = 0; i < count; i++) {
+            obstacles.push({
+              type: 'spike',
+              x: cursorX + i * (spikeW + 2),
+              w: spikeW,
+              h: spikeH
+            });
+          }
+          cursorX += count * (spikeW + 2);
+        } 
+        else if (roll < 0.55) {
+          // 2. Platform / Block
+          const blockW = 45 + Math.floor(Math.random() * 4) * 25;
+          const blockH = 34 + Math.floor(Math.random() * 3) * 16;
+          const blockY = groundY - blockH;
+
+          obstacles.push({
+            type: 'block',
+            x: cursorX,
+            y: blockY,
+            w: blockW,
+            h: blockH
+          });
+
+          const subRoll = Math.random();
+          if (subRoll < 0.35 && blockW >= 65) {
+            obstacles.push({
+              type: 'pad',
+              x: cursorX + blockW / 2 - 17,
+              y: blockY - 10,
+              w: 34,
+              h: 10,
+              bounce: 0
+            });
+          } else if (subRoll < 0.75) {
+            const spW = 22, spH = 28;
+            obstacles.push({
+              type: 'spike',
+              x: cursorX + blockW + 15 + Math.random() * 12,
+              w: spW,
+              h: spH
+            });
+            cursorX += spW + 25;
+          }
+          cursorX += blockW;
+        } 
+        else if (roll < 0.78) {
+          // 3. Mid-Air Jump Orb over spike pit
+          const pitCount = 2 + Math.floor(Math.random() * 2);
+          const pitWidth = pitCount * 24;
+          for (let i = 0; i < pitCount; i++) {
+            obstacles.push({
+              type: 'spike',
+              x: cursorX + 10 + i * 24,
+              w: 22,
+              h: 28
+            });
+          }
+
+          const orbY = groundY - (60 + Math.random() * 30);
+          obstacles.push({
+            type: 'orb',
+            x: cursorX + 10 + pitWidth / 2,
+            y: orbY,
+            r: 16,
+            used: false
+          });
+          cursorX += pitWidth + 25;
+        } 
+        else {
+          // 4. Trampoline launcher (soars high into the open sky)
+          const padW = 36, padH = 10;
+          obstacles.push({
+            type: 'pad',
+            x: cursorX,
+            y: groundY - padH,
+            w: padW,
+            h: padH,
+            bounce: 0
+          });
+          cursorX += padW;
+
+          const spikeCount = 2 + Math.floor(Math.random() * 3);
+          const gapOffset = 45 + Math.random() * 25;
+          for (let i = 0; i < spikeCount; i++) {
+            obstacles.push({
+              type: 'spike',
+              x: cursorX + gapOffset + i * 24,
+              w: 22,
+              h: 28
+            });
+          }
+          cursorX += gapOffset + spikeCount * 24;
+
+          if (Math.random() > 0.4) {
+            const landingW = 50 + Math.random() * 40;
+            const landingH = 35 + Math.random() * 25;
+            obstacles.push({
+              type: 'block',
+              x: cursorX + 20,
+              y: groundY - landingH,
+              w: landingW,
+              h: landingH
+            });
+            cursorX += landingW + 20;
+          }
+        }
+
+        const nextGap = 175 + Math.random() * 120;
+        return cursorX + nextGap;
+      }
+
+      function tryTriggerOrb() {
+        const cubeCenterX = landX + cubeSize / 2;
+        const cubeCenterY = cube.y + cubeSize / 2;
+
+        for (let obs of obstacles) {
+          if (obs.type === 'orb' && !obs.used) {
+            const dist = Math.hypot(cubeCenterX - obs.x, cubeCenterY - obs.y);
+            if (dist < 56) {
+              obs.used = true;
+              cube.vy = JUMP_FORCE * 1.08;
+              cube.jumping = true;
+              cube.onGround = false;
+              jumpBufferTimer = 0;
+              ringPulses.push({ x: obs.x, y: obs.y, r: 16, alpha: 1.2 });
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+
+      function doJump() {
+        cube.vy = JUMP_FORCE;
+        cube.jumping = true;
+        cube.onGround = false;
+        cube.y -= 2;
+        jumpBufferTimer = 0;
+      }
 
       function jump() {
-        if (gameOver) { reset(); return; }
-        if (!cube.jumping) { cube.vy = -12; cube.jumping = true; }
+        if (gameOver) {
+          if (canRestart) reset();
+          return;
+        }
+
+        if (tryTriggerOrb()) return;
+
+        if (cube.onGround) {
+          doJump();
+        } else {
+          jumpBufferTimer = 12;
+        }
+      }
+
+      function die() {
+        if (gameOver) return;
+        gameOver = true;
+        shakeTime = 16;
+        canRestart = false;
+
+        const cx = landX + cubeSize / 2;
+        const cy = cube.y + cubeSize / 2;
+        for (let i = 0; i < 35; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speedP = 2 + Math.random() * 8;
+          particles.push({
+            x: cx,
+            y: cy,
+            vx: Math.cos(angle) * speedP,
+            vy: Math.sin(angle) * speedP - 2,
+            color: msColors[Math.floor(Math.random() * msColors.length)],
+            size: 5 + Math.random() * 7,
+            rot: Math.random() * Math.PI,
+            vrot: (Math.random() - 0.5) * 0.3,
+            alpha: 1
+          });
+        }
+
+        setTimeout(() => { canRestart = true; }, 350);
       }
 
       function reset() {
-        groundY = canvas.height * 0.75;
-        cube.y = groundY - cubeSize; cube.vy = 0; cube.angle = 0; cube.jumping = false;
-        spikes = []; frame = 0; score = 0; speed = 5.5; gameOver = false;
-        hintEl.textContent = 'Space / Tap anywhere to jump';
+        groundY = canvas.height - 75;
+        cube.y = groundY - cubeSize;
+        cube.oldY = cube.y;
+        cube.vy = 0;
+        cube.angle = 0;
+        cube.jumping = false;
+        cube.onGround = true;
+        obstacles = [];
+        particles = [];
+        ringPulses = [];
+        frame = 0;
+        worldOffset = 0;
+        speed = 6.0;
+        gameOver = false;
+        shakeTime = 0;
+        jumpBufferTimer = 0;
+        nextSpawnX = canvas.width + 80;
       }
 
-      window.addEventListener('keydown', (e) => { 
-        if (e.code === 'Space' || e.code === 'ArrowUp') { 
-          e.preventDefault(); 
-          jump(); 
-        } 
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' || e.code === 'ArrowUp') {
+          e.preventDefault();
+          if (!isHoldingJump) {
+            isHoldingJump = true;
+            jump();
+          }
+        }
       });
+      window.addEventListener('keyup', (e) => {
+        if (e.code === 'Space' || e.code === 'ArrowUp') {
+          isHoldingJump = false;
+        }
+      });
+
       window.addEventListener('pointerdown', (e) => {
-        // Prevent interfering with the Install button
         if (!e.target.closest('#installBtn')) {
+          isHoldingJump = true;
           jump();
         }
+      });
+      window.addEventListener('pointerup', () => {
+        isHoldingJump = false;
       });
 
       function loop() {
         const W = canvas.width;
         const H = canvas.height;
-        groundY = H * 0.75;
-        frame++;
+        groundY = H - 75;
 
         if (!gameOver) {
-          cube.vy += 0.65;
+          frame++;
+          worldOffset += speed;
+
+          if (jumpBufferTimer > 0) jumpBufferTimer--;
+
+          if (isHoldingJump) {
+            tryTriggerOrb();
+          }
+
+          cube.oldY = cube.y;
+          cube.vy += GRAVITY;
           cube.y += cube.vy;
-          if (cube.jumping) cube.angle += 0.16;
 
-          if (cube.y > groundY - cubeSize) {
-            cube.y = groundY - cubeSize; 
-            cube.vy = 0; 
-            cube.jumping = false;
-            cube.angle = Math.round(cube.angle / (Math.PI / 2)) * (Math.PI / 2);
+          if (cube.jumping) {
+            cube.angle += ROTATION_SPEED;
           }
 
-          // Spawn obstacles
-          if (frame % 85 === 0) {
-            spikes.push({ x: W, w: 22, h: 28 });
+          let landedOnBlock = false;
+          let hitTrampolineThisFrame = false;
+
+          // Spawning
+          nextSpawnX -= speed;
+          if (nextSpawnX <= W) {
+            nextSpawnX = spawnProceduralChunk(W + 40);
           }
 
-          spikes.forEach(s => s.x -= speed);
-          spikes = spikes.filter(s => s.x + s.w > 0);
+          // Process Obstacles
+          obstacles.forEach(obs => {
+            obs.x -= speed;
 
-          // Hit detection
-          spikes.forEach(s => {
-            if (landX < s.x + s.w - 6 && landX + cubeSize > s.x + 6 && cube.y + cubeSize > groundY - s.h + 6) {
-              gameOver = true;
-              hintEl.textContent = 'Game Over — Click / Space to retry';
+            // 1. Spikes Collision
+            if (obs.type === 'spike') {
+              if (
+                landX + cubeSize - 6 > obs.x &&
+                landX + 6 < obs.x + obs.w &&
+                cube.y + cubeSize > groundY - obs.h + 4
+              ) {
+                die();
+              }
+            }
+
+            // 2. Block Collision
+            else if (obs.type === 'block') {
+              const inXRange = (landX + cubeSize - 6 > obs.x) && (landX + 6 < obs.x + obs.w);
+
+              if (inXRange && cube.oldY + cubeSize <= obs.y + 14 && cube.y + cubeSize >= obs.y) {
+                cube.y = obs.y - cubeSize;
+                cube.vy = 0;
+                cube.jumping = false;
+                cube.onGround = true;
+                cube.angle = Math.round(cube.angle / (Math.PI / 2)) * (Math.PI / 2);
+                landedOnBlock = true;
+
+                if (isHoldingJump || jumpBufferTimer > 0) {
+                  doJump();
+                }
+              }
+              else if (
+                landX + cubeSize - 4 > obs.x &&
+                landX + 8 < obs.x + obs.w &&
+                cube.y + cubeSize > obs.y + 8 &&
+                cube.y < obs.y + obs.h
+              ) {
+                die();
+              }
+            }
+
+            // 3. Trampoline Collision
+            else if (obs.type === 'pad') {
+              if (obs.bounce > 0) obs.bounce--;
+
+              const padOverlapX = (landX + cubeSize > obs.x + 2) && (landX < obs.x + obs.w - 2);
+              const padOverlapY = (cube.y + cubeSize >= obs.y - 6) && (cube.y + cubeSize <= obs.y + obs.h + 12);
+
+              if (padOverlapX && padOverlapY) {
+                cube.vy = -16.2; // High jump into open air
+                cube.y = obs.y - cubeSize - 2;
+                cube.jumping = true;
+                cube.onGround = false;
+                hitTrampolineThisFrame = true;
+                obs.bounce = 8;
+                jumpBufferTimer = 0;
+                ringPulses.push({ x: obs.x + obs.w / 2, y: obs.y, r: 12, alpha: 1.2 });
+              }
             }
           });
 
-          if (!gameOver) { 
-            score++; 
-            if (score % 300 === 0) speed += 0.35; 
+          // Ground landing
+          if (!landedOnBlock && !hitTrampolineThisFrame) {
+            if (cube.y >= groundY - cubeSize) {
+              cube.y = groundY - cubeSize;
+              cube.vy = 0;
+              cube.jumping = false;
+              cube.onGround = true;
+              cube.angle = Math.round(cube.angle / (Math.PI / 2)) * (Math.PI / 2);
+
+              if (isHoldingJump || jumpBufferTimer > 0) {
+                doJump();
+              }
+            } else {
+              cube.onGround = false;
+            }
+          }
+
+          obstacles = obstacles.filter(obs => (obs.x + (obs.w || 60)) > -70);
+
+          if (frame % 400 === 0) {
+            speed += 0.25;
           }
         }
 
-        ctx.clearRect(0, 0, W, H);
+        // Particles
+        particles.forEach(p => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.35;
+          p.rot += p.vrot;
+          p.alpha -= 0.02;
+        });
+        particles = particles.filter(p => p.alpha > 0);
 
-        // Ground Line spanning full screen width
+        // Ring Pulses
+        ringPulses.forEach(r => {
+          r.r += 3.2;
+          r.alpha -= 0.04;
+        });
+        ringPulses = ringPulses.filter(r => r.alpha > 0);
+
+        // Canvas Render
+        ctx.clearRect(0, 0, W, H);
+        ctx.save();
+
+        // Screen Shake
+        if (shakeTime > 0) {
+          const sX = (Math.random() - 0.5) * shakeTime * 0.8;
+          const sY = (Math.random() - 0.5) * shakeTime * 0.8;
+          ctx.translate(sX, sY);
+          shakeTime--;
+        }
+
+        // Ground Line
         ctx.strokeStyle = '#B3B0AD';
         ctx.lineWidth = 2;
-        ctx.beginPath(); 
-        ctx.moveTo(0, groundY); 
-        ctx.lineTo(W, groundY); 
+        ctx.beginPath();
+        ctx.moveTo(0, groundY);
+        ctx.lineTo(W, groundY);
         ctx.stroke();
 
-        // Moving ground hash lines
+        // Road hash lines
         ctx.strokeStyle = '#D2D0CE';
         ctx.lineWidth = 1.5;
-        for (let x = -((frame * speed) % 24); x < W; x += 24) {
-          ctx.beginPath(); 
-          ctx.moveTo(x, groundY); 
-          ctx.lineTo(x + 10, groundY + 10); 
+        for (let x = -((worldOffset) % 24); x < W; x += 24) {
+          ctx.beginPath();
+          ctx.moveTo(x, groundY);
+          ctx.lineTo(x + 10, groundY + 10);
           ctx.stroke();
         }
 
-        // Obstacles (Spikes)
-        ctx.fillStyle = gameOver ? '#D13438' : '#323130';
-        spikes.forEach(s => {
+        // Draw Obstacles
+        obstacles.forEach(obs => {
+          // 1. Spikes
+          if (obs.type === 'spike') {
+            ctx.fillStyle = '#323130';
+            ctx.beginPath();
+            ctx.moveTo(obs.x, groundY);
+            ctx.lineTo(obs.x + obs.w / 2, groundY - obs.h);
+            ctx.lineTo(obs.x + obs.w, groundY);
+            ctx.closePath();
+            ctx.fill();
+          }
+          // 2. Blocks
+          else if (obs.type === 'block') {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+            ctx.strokeStyle = '#323130';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+            ctx.strokeStyle = '#D2D0CE';
+            ctx.strokeRect(obs.x + 4, obs.y + 4, obs.w - 8, obs.h - 8);
+          }
+          // 3. Jump Orb
+          else if (obs.type === 'orb') {
+            ctx.save();
+            const pulse = Math.sin(frame * 0.15) * 3;
+            ctx.strokeStyle = obs.used ? 'rgba(255, 185, 0, 0.2)' : 'rgba(255, 185, 0, 0.6)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(obs.x, obs.y, obs.r + 6 + pulse, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = obs.used ? 'rgba(255, 185, 0, 0.25)' : '#FFB900';
+            ctx.beginPath();
+            ctx.arc(obs.x, obs.y, obs.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#D99B00';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(obs.x, obs.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+          // 4. Trampoline
+          else if (obs.type === 'pad') {
+            ctx.save();
+            const compress = obs.bounce ? Math.sin(obs.bounce * 0.5) * 3 : 0;
+            const padH = Math.max(4, obs.h - compress);
+            const padY = obs.y + (obs.h - padH);
+
+            ctx.fillStyle = '#323130';
+            ctx.fillRect(obs.x, obs.y + obs.h - 3, obs.w, 3);
+
+            ctx.fillStyle = '#FFB900';
+            ctx.beginPath();
+            ctx.roundRect(obs.x + 2, padY, obs.w - 4, padH, [4, 4, 1, 1]);
+            ctx.fill();
+            ctx.strokeStyle = '#E0A800';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(obs.x + obs.w / 2 - 5, padY + padH / 2 + 2);
+            ctx.lineTo(obs.x + obs.w / 2, padY + padH / 2 - 3);
+            ctx.lineTo(obs.x + obs.w / 2 + 5, padY + padH / 2 + 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        });
+
+        // Shockwaves
+        ringPulses.forEach(r => {
+          ctx.strokeStyle = `rgba(255, 185, 0, ${r.alpha})`;
+          ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.moveTo(s.x, groundY);
-          ctx.lineTo(s.x + s.w / 2, groundY - s.h);
-          ctx.lineTo(s.x + s.w, groundY);
-          ctx.closePath();
-          ctx.fill();
+          ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+          ctx.stroke();
         });
 
         // Player Cube
-        ctx.save();
-        ctx.translate(landX + cubeSize / 2, cube.y + cubeSize / 2);
-        ctx.rotate(cube.angle);
-        const half = cubeSize / 2;
-        const gap = 1;
-        ctx.fillStyle = gameOver ? '#D13438' : msColors[0]; ctx.fillRect(-half, -half, half - gap, half - gap);
-        ctx.fillStyle = gameOver ? '#D13438' : msColors[1]; ctx.fillRect(gap, -half, half - gap, half - gap);
-        ctx.fillStyle = gameOver ? '#D13438' : msColors[2]; ctx.fillRect(-half, gap, half - gap, half - gap);
-        ctx.fillStyle = gameOver ? '#D13438' : msColors[3]; ctx.fillRect(gap, gap, half - gap, half - gap);
+        if (!gameOver) {
+          ctx.save();
+          ctx.translate(landX + cubeSize / 2, cube.y + cubeSize / 2);
+          ctx.rotate(cube.angle);
+          const half = cubeSize / 2;
+          const gap = 1;
+          ctx.fillStyle = msColors[0]; ctx.fillRect(-half, -half, half - gap, half - gap);
+          ctx.fillStyle = msColors[1]; ctx.fillRect(gap, -half, half - gap, half - gap);
+          ctx.fillStyle = msColors[2]; ctx.fillRect(-half, gap, half - gap, half - gap);
+          ctx.fillStyle = msColors[3]; ctx.fillRect(gap, gap, half - gap, half - gap);
+          ctx.restore();
+        }
+
+        // Death Particles
+        particles.forEach(p => {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = Math.max(0, p.alpha);
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+          ctx.restore();
+        });
+
         ctx.restore();
-
-        scoreEl.textContent = 'Score: ' + Math.floor(score / 5);
-
         requestAnimationFrame(loop);
       }
 
