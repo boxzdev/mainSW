@@ -22,6 +22,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build-exe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-windows
+          path: client.exe
+
   # Single deploy job since we're just deploying
   deploy:
     environment:
